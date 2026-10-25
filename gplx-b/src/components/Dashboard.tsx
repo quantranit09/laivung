@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CHAPTERS, EXAM_FORMATS, QUESTIONS } from "@/lib/questions"
 import { chapterMastery, dayKey, daysToExam, lessonRange, lessonTitle, passProbability, stats } from "@/lib/srs"
-import { useStudyPlan } from "@/components/StudyView"
+import { useStudyPlan } from "@/lib/useStudyPlan"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/store"
 

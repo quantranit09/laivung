@@ -12,7 +12,7 @@ import {
 } from "@/lib/srs"
 import type { SyncData } from "@/lib/sync"
 
-export type View = "home" | "study" | "exam" | "wrong" | "browse"
+export type View = "home" | "study" | "exam" | "wrong" | "browse" | "sim"
 
 export interface StudySession {
   kind: "study" | "wrong"

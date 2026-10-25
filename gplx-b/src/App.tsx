@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
   Brain,
+  CarFront,
   ClipboardCheck,
   Cloud,
   CloudAlert,
@@ -57,7 +58,11 @@ const NAV: { id: View; label: string; icon: React.ComponentType<{ className?: st
   { id: "exam", label: "Thi thử", icon: ClipboardCheck },
   { id: "wrong", label: "Câu sai", icon: NotebookPen },
   { id: "browse", label: "600 câu", icon: Grid3x3 },
+  { id: "sim", label: "Lái xe", icon: CarFront },
 ]
+
+// Trình mô phỏng 3D nặng (three.js) — chỉ tải khi mở.
+const SimView = lazy(() => import("@/components/sim/SimView"))
 
 export default function App() {
   const user = useStore((s) => s.user)
@@ -140,9 +145,14 @@ function Shell() {
         {view === "wrong" && <StudyView kind="wrong" />}
         {view === "exam" && <ExamView />}
         {view === "browse" && <BrowseView />}
+        {view === "sim" && (
+          <Suspense fallback={<p className="py-20 text-center text-muted-foreground">Đang tải trình mô phỏng 3D…</p>}>
+            <SimView onExit={() => setView("home")} />
+          </Suspense>
+        )}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-lg sm:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-lg sm:hidden">
         {NAV.map((n) => (
           <button
             key={n.id}
