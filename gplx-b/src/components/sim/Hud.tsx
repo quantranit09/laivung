@@ -15,7 +15,7 @@ export const glass = "bg-zinc-950/55 text-white ring-1 ring-white/10 shadow-[0_8
 export const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`
 
 function Seg({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("flex items-center gap-2 px-3 py-2 sm:px-4", className)}>{children}</div>
+  return <div className={cn("flex items-center gap-1.5 px-2 py-2 sm:gap-2 sm:px-4", className)}>{children}</div>
 }
 
 function Ring({ value, total }: { value: number; total: number }) {
@@ -47,15 +47,15 @@ export function TopBar({
 }) {
   const over = hud.kmh > speedLimit + 0.5
   return (
-    <div className={cn("flex max-w-full items-stretch divide-x divide-white/10 overflow-x-auto rounded-2xl text-sm [scrollbar-width:none]", glass)}>
+    <div className={cn("flex w-full items-stretch divide-x divide-white/10 overflow-x-auto rounded-2xl text-sm [scrollbar-width:none] sm:w-fit sm:max-w-full max-sm:*:flex-1 max-sm:*:justify-center", glass)}>
       <Seg>
         <ShieldCheck className={cn("size-5", hud.score >= PASS_SCORE ? "text-emerald-400" : "text-rose-400")} />
         <span className="text-xl font-extrabold tabular-nums">{hud.score}</span>
       </Seg>
       <Seg>
-        <Timer className="size-4 text-sky-300" />
+        <Timer className="hidden size-4 text-sky-300 min-[400px]:block" />
         <span className="font-mono text-base font-semibold tabular-nums">{fmt(hud.time)}</span>
-        <span className="hidden font-mono text-xs text-white/50 tabular-nums sm:inline">/ {fmt(timeLimit)}</span>
+        <span className="hidden font-mono text-xs text-white/50 tabular-nums sm:inline short:hidden">/ {fmt(timeLimit)}</span>
       </Seg>
       {progress && (
         <Seg className="min-w-0">
@@ -63,7 +63,7 @@ export function TopBar({
           <span className="shrink-0 text-xs font-semibold text-sky-300 tabular-nums">
             {progress.done}/{progress.total}
           </span>
-          <span className="hidden max-w-56 truncate font-semibold md:inline">{title}</span>
+          <span className="hidden max-w-56 truncate font-semibold lg:inline">{title}</span>
         </Seg>
       )}
       <Seg>
@@ -73,7 +73,7 @@ export function TopBar({
           <br />≤{speedLimit}
         </span>
       </Seg>
-      <Seg className="hidden sm:flex">
+      <Seg className="hidden md:flex short:hidden">
         {hud.ev ? <Zap className="size-4 text-amber-300" /> : <Gauge className={cn("size-4", hud.rpm > 4000 ? "text-rose-400" : "text-amber-300")} />}
         <div className="w-16">
           <div className="h-1.5 overflow-hidden rounded-full bg-white/15">
@@ -85,11 +85,11 @@ export function TopBar({
           <div className="mt-0.5 text-[0.65rem] text-white/60 tabular-nums">{hud.ev ? `${Math.round(hud.power * 130)} kW` : `${Math.round(hud.rpm)} v/ph`}</div>
         </div>
       </Seg>
-      <Seg className="px-2">
+      <Seg className="px-1.5 sm:px-2">
         <button
           onClick={onEngine}
           className={cn(
-            "flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold tracking-wide transition",
+            "flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold tracking-wide whitespace-nowrap transition sm:px-3",
             hud.engine ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/40" : "animate-pulse bg-rose-500/20 text-rose-200 ring-1 ring-rose-400/60",
           )}
           title="Khởi động / tắt xe (K)"
@@ -102,16 +102,16 @@ export function TopBar({
   )
 }
 
-export function InstructionPanel({ instr, alarm, assist, faults }: { instr: Instruction; alarm: boolean; assist: boolean; faults: Fault[] }) {
+export function InstructionPanel({ instr, alarm, assist, faults, narrow }: { instr: Instruction; alarm: boolean; assist: boolean; faults: Fault[]; narrow?: boolean }) {
   const recent = faults.slice(-3).reverse()
   return (
-    <div className="pointer-events-none w-[min(92vw,360px)] space-y-2">
+    <div className={cn("pointer-events-none w-[min(92vw,360px)] space-y-2 short:w-[min(44vw,320px)]", narrow && "max-sm:w-[calc(58vw-1.25rem)]")}>
       <div className={cn("rounded-2xl p-3.5", glass, alarm && "animate-pulse bg-rose-600/80 ring-rose-300/40")}>
         <div className="text-sm font-bold">{instr.title}</div>
-        {instr.detail && <div className="mt-1 text-xs leading-relaxed text-white/80">{instr.detail}</div>}
+        {instr.detail && <div className="mt-1 text-xs leading-relaxed text-white/80 short:line-clamp-2">{instr.detail}</div>}
         {assist && instr.toLine !== undefined && instr.toLine > -2 && instr.toLine < 12 && <LineMeter d={instr.toLine} />}
       </div>
-      {recent.map((f, i) => (
+      {recent.slice(0, 2).map((f, i) => (
         <div
           key={f.t + f.text}
           className={cn(
@@ -146,8 +146,8 @@ function LineMeter({ d }: { d: number }) {
 }
 
 /** Khung + vạch dẫn hướng của camera lùi (ảnh được vẽ thẳng bằng WebGL vào cùng vị trí). */
-export function RearCamFrame({ width, steer }: { width: number; steer: number }) {
-  const r = rearInset(width)
+export function RearCamFrame({ width, height, steer }: { width: number; height: number; steer: number }) {
+  const r = rearInset(width, height)
   // Vạch dẫn cong theo góc lái (lùi: đánh lái trái → đuôi xe sang phải trên màn hình gương)
   const bend = -steer * 60
   return (
@@ -217,7 +217,7 @@ export function Minimap({ shapes, hud, city }: { shapes: Shape[]; hud?: Hud; cit
     g.fill()
     g.restore()
   }, [hud, shapes, base, city])
-  return <canvas ref={ref} width={150} height={150} className={cn("hidden rounded-2xl p-1 sm:block", glass)} />
+  return <canvas ref={ref} width={150} height={150} className={cn("hidden rounded-2xl p-1 sm:block short:hidden", glass)} />
 }
 
 export function Result({ passed, score, faults, time, onRestart, onMenu }: { passed: boolean; score: number; faults: Fault[]; time: number; onRestart: () => void; onMenu: () => void }) {
@@ -257,6 +257,45 @@ export function Result({ passed, score, faults, time, onRestart, onMenu }: { pas
           </div>
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+/** Các bước xuất phát như trên xe thật — tích dần khi làm đúng. */
+export function StartChecklist({ hud, touch, narrow, onBegin }: { hud: Hud; touch: boolean; narrow?: boolean; onBegin: () => void }) {
+  // Cảm ứng: chỉ tên nút trên màn hình; bàn phím: kèm phím tắt
+  const steps: [string, string, boolean][] = [
+    [touch ? "Giữ bàn đạp PHANH" : "Đạp giữ phanh", "S", hud.brake > 0.3 || hud.engine],
+    [hud.ev ? "Bật xe — READY" : "Khởi động máy", "K", hud.engine],
+    ["Thắt dây an toàn", "B", hud.seatbelt],
+    ["Vào số D khi đang đạp phanh", "4", hud.gear === "D"],
+    ["Nhả phanh tay khi đang đạp phanh", "Space", !hud.handbrake],
+    ["Nhận lệnh xuất phát", "Enter", false],
+  ]
+  const next = steps.findIndex(([, , ok]) => !ok)
+  return (
+    <div className={cn("pointer-events-none w-[min(92vw,360px)] rounded-2xl p-3.5 short:w-[min(44vw,320px)] short:p-2.5 short:text-[0.7rem]", narrow && "max-sm:w-[calc(58vw-1.25rem)]", glass)}>
+      <div className="text-sm font-bold">Chuẩn bị xuất phát</div>
+      <ol className="mt-2 space-y-1.5 text-xs short:space-y-1">
+        {steps.map(([t, key, ok], i) => (
+          <li key={t} className={cn("flex items-center gap-2", ok ? "text-emerald-300" : i === next ? "font-semibold text-white" : "text-white/60")}>
+            <span className={cn("flex size-4.5 shrink-0 items-center justify-center rounded-full text-[0.6rem] font-bold", ok ? "bg-emerald-400 text-zinc-900" : "bg-white/15")}>
+              {ok ? "✓" : i + 1}
+            </span>
+            {t}
+            {!touch && <span className="text-white/40">({key})</span>}
+          </li>
+        ))}
+      </ol>
+      <p className="mt-2 text-[0.7rem] text-white/60 short:hidden">
+        Sau khi nhận lệnh: bật xi nhan trái{touch ? "" : " (Q)"}, nhả phanh cho xe tự bò qua vạch trong 20 giây.
+      </p>
+      <button
+        onClick={onBegin}
+        className={cn("pointer-events-auto mt-2.5 w-full rounded-xl bg-sky-500 py-2.5 text-sm font-bold short:mt-1.5 short:py-1.5 text-white transition active:bg-sky-400", !touch && "sm:hidden")}
+      >
+        Nhận lệnh xuất phát
+      </button>
     </div>
   )
 }

@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Canvas } from "@react-three/fiber"
-import { Environment, Lightformer, Sky } from "@react-three/drei"
+import { Environment } from "@react-three/drei"
+import { Bloom, EffectComposer, SMAA, ToneMapping, Vignette } from "@react-three/postprocessing"
+import { ToneMappingMode } from "postprocessing"
 import * as THREE from "three"
 import { ArrowLeft, CircleParking, Keyboard, Pause, Play, RotateCcw, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -12,10 +14,14 @@ import { unlockAudio } from "@/sim/audio"
 import type { Fault, Instruction, Scenario } from "@/sim/scenario"
 import { YardExam } from "@/sim/yard"
 import { cn } from "@/lib/utils"
+import { Component, type ReactNode } from "react"
 import { CarModel } from "./CarModel"
+import { GlbCar } from "./GlbCar"
+import { useCarModelFile } from "./useCarModel"
 import { CityMesh } from "./CityMesh"
-import { ControlDock } from "./Controls"
-import { glass, InstructionPanel, Minimap, RearCamFrame, Result, TopBar } from "./Hud"
+import { StatusStrip, TouchDock } from "./Controls"
+import { glass, InstructionPanel, Minimap, RearCamFrame, Result, StartChecklist, TopBar } from "./Hud"
+import { SKY_HDR } from "./pbr"
 import { useSimPrefs } from "./prefs"
 import { SimSettings } from "./SimSettings"
 import { YardMesh } from "./YardMesh"
@@ -27,10 +33,19 @@ export default function SimView({ onExit }: { onExit: () => void }) {
   const [mode, setMode] = useState<Mode>()
   const [run, setRun] = useState(0)
   const [prefs, setPrefs] = useSimPrefs()
-  if (!mode) return <Menu onPick={setMode} onExit={onExit} />
+  if (!mode)
+    return (
+      <Menu
+        onPick={(next) => {
+          unlockAudio()
+          setMode(next)
+        }}
+        onExit={onExit}
+      />
+    )
   return (
     <Drive
-      key={`${mode}-${run}-${prefs.car}`}
+      key={`${mode}-${run}-${prefs.car}-${prefs.quality}`}
       mode={mode}
       prefs={prefs}
       setPrefs={setPrefs}
@@ -141,7 +156,9 @@ function Drive({
   const [faults, setFaults] = useState<Fault[]>([])
   const [toast, setToast] = useState<string>()
   const [isPaused, setPaused] = useState(false)
-  const [width, setWidth] = useState(() => window.innerWidth)
+  const hudSeen = useRef(false)
+  const [[width, height], setSize] = useState(() => [window.innerWidth, window.innerHeight])
+  const [coarse] = useState(() => window.matchMedia("(pointer: coarse)").matches)
 
   useEffect(() => () => mirrors.targets.forEach((t) => t.dispose()), [mirrors])
   useEffect(() => {
@@ -158,10 +175,13 @@ function Drive({
   }, [car, scenario])
 
   useEffect(() => {
-    const down = (e: KeyboardEvent) => input.onKey(e, true)
+    const down = (e: KeyboardEvent) => {
+      unlockAudio()
+      input.onKey(e, true)
+    }
     const up = (e: KeyboardEvent) => input.onKey(e, false)
     const blur = () => input.held.clear()
-    const resize = () => setWidth(window.innerWidth)
+    const resize = () => setSize([window.innerWidth, window.innerHeight])
     window.addEventListener("keydown", down)
     window.addEventListener("keyup", up)
     window.addEventListener("blur", blur)
@@ -175,8 +195,13 @@ function Drive({
     }
   }, [input])
 
+  const mountedAt = useRef(performance.now())
   const onHud = useCallback(
     (h: Hud) => {
+      if (import.meta.env.DEV && !hudSeen.current) {
+        hudSeen.current = true
+        console.log(`[sim] khung hình đầu sau ${Math.round(performance.now() - mountedAt.current)} ms`)
+      }
       setHud(h)
       setInstr(scenario.instruction(car))
       setPaused(paused.current)
@@ -202,14 +227,18 @@ function Drive({
     if (drag.current !== null) input.lookDrag = Math.max(-1.3, Math.min(1.3, -(e.clientX - drag.current) / 260))
   }
 
+  const model = useCarModelFile(prefs.car)
+  const procedural = <CarModel car={carRef} color={prefs.color} interior={hud?.camera === "first"} mirrors={prefs.mirrors ? mirrors.textures : undefined} />
   const done = hud && (hud.status === "passed" || hud.status === "failed")
-  const shadows = prefs.shadows
+  const touch = prefs.controls === "touch" || (prefs.controls === "auto" && coarse)
+  const q = prefs.quality
+  const post = q !== "low"
 
   return (
     <Shell>
       <div
         ref={box}
-        className="relative flex-1 overflow-hidden select-none"
+        className="relative flex-1 touch-none overflow-hidden select-none"
         onPointerMove={onMove}
         onPointerDown={(e) => {
           unlockAudio()
@@ -221,32 +250,56 @@ function Drive({
         }}
       >
         <Canvas
-          shadows={shadows ? "soft" : false}
-          dpr={[1, 1.75]}
-          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
+          shadows={q === "high" ? "soft" : q === "medium"}
+          dpr={q === "low" ? [1, 1] : q === "medium" ? [1, 1.25] : [1, 1.75]}
+          gl={{ antialias: !post, toneMapping: post ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping, toneMappingExposure: 1 }}
           camera={{ fov: 58, near: 0.08, far: 1200, position: [0, 5, -18] }}
         >
-          <Sky distance={4500} sunPosition={[120, 60, 80]} turbidity={5} rayleigh={1.1} mieCoefficient={0.004} />
-          <fog attach="fog" args={["#dfe9f3", 160, 650]} />
-          <hemisphereLight args={["#eef6ff", "#5b6b4c", 0.7]} />
-          <Environment resolution={128} frames={1}>
-            <Lightformer intensity={2} position={[0, 6, 0]} rotation-x={Math.PI / 2} scale={[20, 20, 1]} />
-            <Lightformer intensity={1} position={[-8, 2, 4]} rotation-y={Math.PI / 2} scale={[10, 3, 1]} color="#dbeafe" />
-            <Lightformer intensity={1} position={[8, 2, -4]} rotation-y={-Math.PI / 2} scale={[10, 3, 1]} color="#fff7ed" />
-          </Environment>
-          {mode === "yard" ? <YardMesh exam={scRef as React.RefObject<YardExam>} /> : <CityMesh city={scRef as React.RefObject<CityDrive>} />}
-          <CarModel car={carRef} color={prefs.color} interior={hud?.camera === "first"} mirrors={prefs.mirrors ? mirrors.textures : undefined} />
-          <SimLoop car={carRef} scenario={scRef} input={input} camera={camera} paused={paused} onHud={onHud} onToast={onToast} />
-          <Renderer car={carRef} camera={camera} mirrors={mirrors.targets} />
+          <fog attach="fog" args={["#c7d3df", 180, 700]} />
+          <Suspense fallback={null}>
+            {/* Trời thật (HDRI) vừa làm nền vừa chiếu sáng, phản chiếu lên sơn xe và kính */}
+            <Environment files={SKY_HDR} background environmentIntensity={1.15} backgroundIntensity={1} />
+            {mode === "yard" ? <YardMesh exam={scRef as React.RefObject<YardExam>} /> : <CityMesh city={scRef as React.RefObject<CityDrive>} />}
+          </Suspense>
+          <hemisphereLight args={["#eef6ff", "#55624a", 0.25]} />
+          {/* Xe: mô hình tải về khi nhìn từ ngoài; ở ghế lái dùng nội thất tự dựng (mô hình tải về thường không có cabin) */}
+          {model.url && prefs.useModel && hud?.camera !== "first" ? (
+            <ModelBoundary fallback={procedural}>
+              <Suspense fallback={procedural}>
+                <GlbCar url={model.url} car={carRef} flip={prefs.flipModel} />
+              </Suspense>
+            </ModelBoundary>
+          ) : (
+            procedural
+          )}
+          <SimLoop car={carRef} scenario={scRef} input={input} camera={camera} paused={paused} sound={prefs.engineSound} onHud={onHud} onToast={onToast} />
+          <Renderer car={carRef} camera={camera} mirrors={prefs.mirrors ? mirrors.targets : null} post={post} shadowSize={q === "high" ? 2048 : 1024} />
+          {post && (
+            <EffectComposer renderPriority={2} multisampling={0}>
+              <Bloom mipmapBlur luminanceThreshold={1} luminanceSmoothing={0.2} intensity={0.55} />
+              <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+              <SMAA />
+              <Vignette offset={0.3} darkness={0.42} />
+            </EffectComposer>
+          )}
         </Canvas>
 
-        {/* Thanh trên */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2 sm:p-3">
-          <div className="pointer-events-auto flex min-w-0 items-start gap-2">
-            <button className={cn("flex size-11 shrink-0 items-center justify-center rounded-2xl", glass)} onClick={onMenu} title="Chọn bài khác">
-              <ArrowLeft className="size-5" />
-            </button>
-            {hud && (
+        {!hud && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-gradient-to-b from-slate-200 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+            <div className={cn("flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-medium", glass)}>
+              <span className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              Đang tải sân thi 3D…
+            </div>
+          </div>
+        )}
+
+        {/* Thanh trên — điện thoại dọc: nút ở hàng 1, thanh trạng thái xuống hàng 2 */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start gap-2 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(0.5rem,env(safe-area-inset-right))] pl-[max(0.5rem,env(safe-area-inset-left))] sm:flex-nowrap sm:p-3">
+          <button className={cn("pointer-events-auto flex size-11 shrink-0 items-center justify-center rounded-2xl", glass)} onClick={onMenu} title="Chọn bài khác">
+            <ArrowLeft className="size-5" />
+          </button>
+          {hud && (
+            <div className="pointer-events-auto order-last min-w-0 basis-full sm:order-none sm:flex-1 sm:basis-auto">
               <TopBar
                 hud={hud}
                 timeLimit={scenario.timeLimit}
@@ -255,39 +308,40 @@ function Drive({
                 progress={scenario.progress()}
                 onEngine={() => cmd("engine")}
               />
-            )}
-          </div>
-          <div className="pointer-events-auto flex flex-col items-end gap-2">
+            </div>
+          )}
+          <div className="pointer-events-auto ml-auto flex flex-col items-end gap-2">
             <div className="flex gap-2">
               <button className={cn("flex size-11 items-center justify-center rounded-2xl", glass)} onClick={() => cmd("pause")} title="Tạm dừng (Esc)">
                 {isPaused ? <Play className="size-4" /> : <Pause className="size-4" />}
               </button>
-              <SimSettings prefs={prefs} set={setPrefs} onRestart={onRestart} onMenu={onMenu} />
+              <SimSettings prefs={prefs} set={setPrefs} onRestart={onRestart} onMenu={onMenu} model={model} />
             </div>
             <Minimap shapes={scenario.shapes} hud={hud} city={mode === "city" ? (scenario as CityDrive) : undefined} />
           </div>
         </div>
 
-        {instr && (
-          <div className="absolute top-16 left-2 sm:top-[4.5rem] sm:left-3">
-            <InstructionPanel instr={instr} alarm={scenario.alarm} assist={prefs.assist} faults={faults} />
+        {instr && hud && (
+          <div className="absolute top-[7.25rem] left-2 sm:top-[4.5rem] sm:left-3 short:top-16">
+            {hud.status === "ready" ? (
+              <StartChecklist hud={hud} touch={touch} narrow={hud.gear === "R"} onBegin={() => cmd("begin")} />
+            ) : (
+              <InstructionPanel instr={instr} alarm={scenario.alarm} assist={prefs.assist} faults={faults} narrow={hud.gear === "R"} />
+            )}
           </div>
         )}
 
-        {hud?.gear === "R" && <RearCamFrame width={width} steer={hud.steer} />}
+        {hud?.gear === "R" && <RearCamFrame width={width} height={height} steer={hud.steer} />}
 
         {toast && <div className={cn("pointer-events-none absolute top-1/3 left-1/2 -translate-x-1/2 rounded-2xl px-4 py-2 text-sm", glass)}>{toast}</div>}
 
-        {hud && !done && <ControlDock hud={hud} input={input} cmd={cmd} />}
+        {hud && !done && (touch ? <TouchDock hud={hud} input={input} cmd={cmd} /> : <StatusStrip hud={hud} cmd={cmd} />)}
 
-        {hud?.status === "ready" && (
-          <div className="pointer-events-none absolute inset-x-0 top-20 flex justify-center px-4 sm:top-24">
+        {hud?.status === "ready" && !touch && (
+          <div className="pointer-events-none absolute inset-x-0 top-20 flex justify-center px-4 max-sm:hidden sm:top-24">
             <button
               className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-sky-500 px-6 py-3 text-base font-bold text-white shadow-2xl shadow-sky-500/30 transition hover:bg-sky-400"
-              onClick={() => {
-                if (!hud.engine) cmd("engine")
-                cmd("begin")
-              }}
+              onClick={() => cmd("begin")}
             >
               Nhận lệnh xuất phát <kbd className="rounded bg-white/20 px-1.5 text-xs">Enter</kbd>
             </button>
@@ -319,4 +373,18 @@ function Drive({
       </div>
     </Shell>
   )
+}
+
+/** Mô hình tải về bị lỗi (file hỏng, định dạng lạ) thì quay về xe tự dựng thay vì làm sập cảnh 3D. */
+class ModelBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+  componentDidCatch(error: unknown) {
+    console.error("[sim] Không dùng được mô hình 3D, quay về xe tự dựng:", error)
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children
+  }
 }

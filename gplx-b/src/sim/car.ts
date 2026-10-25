@@ -53,7 +53,7 @@ export const VF6: CarSpec = {
   maxSteer: (33 * Math.PI) / 180,
   ev: true,
   accel: 3.3,
-  eye: 1.3,
+  eye: 1.38,
 }
 
 /** Sedan hạng B số tự động (máy xăng) — kích thước tương tự các mẫu phổ biến dùng để sát hạch. */
@@ -71,7 +71,7 @@ export const SEDAN: CarSpec = {
   maxSteer: (35 * Math.PI) / 180,
   ev: false,
   accel: 2.8,
-  eye: 1.13,
+  eye: 1.2,
 }
 
 export const CARS = { vf6: VF6, sedan: SEDAN }

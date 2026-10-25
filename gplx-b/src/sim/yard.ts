@@ -487,7 +487,7 @@ export class YardExam implements Scenario {
     if (this.status === "ready")
       return {
         title: "Chuẩn bị xuất phát",
-        detail: "Thắt dây an toàn (B), nhả phanh tay (Space), về số D (phím 4). Bấm “Nhận lệnh xuất phát”, bật xi nhan trái (Q) rồi đi trong 20 giây.",
+        detail: "Đạp giữ phanh (S) → bật xe (K) → thắt dây an toàn (B) → vào số D (4) → nhả phanh tay (Space) → nhận lệnh (Enter), bật xi nhan trái (Q) rồi xuất phát.",
       }
     if (this.status !== "running") return { title: "Kết thúc bài thi", detail: "" }
     if (this.alarm) return { title: "⚠ Tình huống nguy hiểm!", detail: "Phanh dừng xe trong 3 giây, bật đèn khẩn cấp (H) trong 5 giây. Hết báo động thì tắt đèn khẩn cấp rồi mới đi tiếp." }

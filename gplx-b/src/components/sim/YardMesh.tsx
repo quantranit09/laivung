@@ -8,35 +8,27 @@ import {
   curbGeometry,
   labelTexture,
   moundGeometry,
-  noiseTexture,
   polyGeometry,
   ribbonGeometry,
   roadTextTexture,
   stripsGeometry,
   zebra,
 } from "@/sim/meshes"
+import { useAsphaltMaterial, useConcreteMaterial, usePbrMaps } from "./pbr"
 import { GARAGE_BAY, PARALLEL_BAY, Y, YARD_MARKS, YARD_SHAPES, yardHeight, type YardExam } from "@/sim/yard"
 
-export function Ground({ color = "#ffffff" }: { color?: string }) {
-  const tex = useMemo(() => {
-    const t = noiseTexture("grass")
-    t.repeat.set(300, 300)
-    return t
-  }, [])
+export function Ground({ color = "#9ccc78" }: { color?: string }) {
+  const maps = usePbrMaps("grass", 260)
   return (
     <mesh rotation-x={-Math.PI / 2} position-y={-0.01} receiveShadow>
       <planeGeometry args={[1200, 1200]} />
-      <meshStandardMaterial map={tex} color={color} roughness={1} />
+      <meshStandardMaterial {...maps} color={color} roughness={1} />
     </mesh>
   )
 }
 
-export function useAsphalt() {
-  return useMemo(() => {
-    const t = noiseTexture("asphalt")
-    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.92, side: THREE.DoubleSide })
-  }, [])
-}
+/** Nhựa đường PBR dùng chung cho sân và phố. */
+export const useAsphalt = useAsphaltMaterial
 
 /** Chữ sơn nằm trên mặt đường, đọc được khi xe chạy theo hướng `heading`. */
 export function RoadText({ at, heading, text, w = 4, y = 0.04, color }: { at: V2; heading: number; text: string; w?: number; y?: number; color?: string }) {
@@ -57,7 +49,7 @@ export function Sign({ at, text, height = 2.2, bg }: { at: { x: number; z: numbe
         <cylinderGeometry args={[0.05, 0.05, height, 8]} />
         <meshStandardMaterial color="#9ca3af" metalness={0.5} />
       </mesh>
-      <sprite position-y={height + 0.45} scale={[3.2, 1, 1]}>
+      <sprite position-y={height + 0.32} scale={[2.1, 0.66, 1]}>
         <spriteMaterial map={tex} />
       </sprite>
     </group>
@@ -138,11 +130,13 @@ export function YardMesh({ exam }: { exam: React.RefObject<YardExam | null> }) {
     }
   }, [])
   const asphalt = useAsphalt()
-  const concrete = useMemo(() => {
-    const t = noiseTexture("concrete")
-    t.repeat.set(6, 6)
-    return t
-  }, [])
+  const concrete = useConcreteMaterial(1, "#e7e3dc")
+  const curbConcrete = useConcreteMaterial(1)
+  const curbMat = useMemo(() => {
+    const m = curbConcrete.clone()
+    m.vertexColors = true
+    return m
+  }, [curbConcrete])
 
   // Lan can hai bên đỉnh dốc
   const rails = useMemo(() => {
@@ -154,9 +148,7 @@ export function YardMesh({ exam }: { exam: React.RefObject<YardExam | null> }) {
   return (
     <group>
       <Ground />
-      <mesh geometry={geo.mound} receiveShadow castShadow>
-        <meshStandardMaterial map={concrete} color="#d6d3cc" roughness={0.95} side={THREE.DoubleSide} />
-      </mesh>
+      <mesh geometry={geo.mound} material={concrete} receiveShadow />
       {geo.roads.map((g, i) => (
         <mesh key={i} geometry={g} material={asphalt} receiveShadow />
       ))}
@@ -166,9 +158,7 @@ export function YardMesh({ exam }: { exam: React.RefObject<YardExam | null> }) {
       <mesh geometry={geo.yellow}>
         <meshStandardMaterial color="#facc15" roughness={0.6} side={THREE.DoubleSide} />
       </mesh>
-      <mesh geometry={geo.curbs} castShadow receiveShadow>
-        <meshStandardMaterial vertexColors roughness={0.7} side={THREE.DoubleSide} />
-      </mesh>
+      <mesh geometry={geo.curbs} material={curbMat} receiveShadow />
       {rails.map((r, i) => (
         <group key={i} position={[r.x, r.y, r.z]}>
           <mesh position-y={0.45}>
@@ -236,7 +226,7 @@ const YARD_AREA: [number, number, number, number] = [-190, -70, 60, 230]
 const yardAvoid = (x: number, z: number) => x < 8 && x > -136 && z > -40 && z < 175
 
 export function Trees({
-  count = 70,
+  count = 45,
   area = YARD_AREA,
   avoid = yardAvoid,
 }: {
@@ -262,17 +252,17 @@ export function Trees({
           <Palm key={i} x={x} z={z} s={s} lean={(i % 7) * 0.05} />
         ) : (
           <group key={i} position={[x, 0, z]} scale={s}>
-            <mesh position-y={1.1} castShadow>
+            <mesh position-y={1.1}>
               <cylinderGeometry args={[0.16, 0.22, 2.2, 8]} />
               <meshStandardMaterial color="#5b3e1f" roughness={1} />
             </mesh>
-            <mesh position-y={3.3} castShadow>
-              <icosahedronGeometry args={[1.9, 1]} />
-              <meshStandardMaterial color={i % 2 ? "#2f7a2f" : "#3d8b37"} roughness={0.95} flatShading />
+            <mesh position-y={3.3}>
+              <icosahedronGeometry args={[1.9, 3]} />
+              <meshStandardMaterial color={i % 2 ? "#3f6f2a" : "#4d7d31"} roughness={1} />
             </mesh>
             <mesh position={[0.9, 2.7, 0.4]}>
-              <icosahedronGeometry args={[1.1, 1]} />
-              <meshStandardMaterial color="#357f33" roughness={0.95} flatShading />
+              <icosahedronGeometry args={[1.1, 3]} />
+              <meshStandardMaterial color="#456f2c" roughness={1} />
             </mesh>
           </group>
         ),
@@ -294,7 +284,7 @@ function Palm({ x, z, s, lean }: { x: number; z: number; s: number; lean: number
       ))}
       <group position={[lean * segs * segs * 0.12, 0.45 + segs * 0.85, 0]}>
         {Array.from({ length: 8 }, (_, k) => (
-          <mesh key={k} rotation={[0.9, (k * Math.PI) / 4, 0, "YXZ"]} position-y={-0.1} castShadow>
+          <mesh key={k} rotation={[0.9, (k * Math.PI) / 4, 0, "YXZ"]} position-y={-0.1}>
             <boxGeometry args={[0.5, 0.04, 2.6]} />
             <meshStandardMaterial color="#2e8b3a" roughness={0.9} />
           </mesh>

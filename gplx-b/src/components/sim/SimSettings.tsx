@@ -1,4 +1,4 @@
-import { Car as CarIcon, Eye, Keyboard, MonitorCog, MousePointer2, RotateCcw, Settings2, SlidersHorizontal } from "lucide-react"
+import { Car as CarIcon, Eye, Keyboard, MonitorCog, MousePointer2, RotateCcw, Settings2, SlidersHorizontal, Volume2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
@@ -7,6 +7,7 @@ import { KEY_HELP, type Sensitivity } from "@/sim/input"
 import { cn } from "@/lib/utils"
 import { glass } from "./Hud"
 import { PAINTS, type SimPrefs } from "./prefs"
+import type { ModelCredit } from "./useCarModel"
 import { CAMERA_LABEL, CAMERA_ORDER } from "./World"
 
 function Section({ icon: Icon, title, children }: { icon: React.ComponentType<{ className?: string }>; title: string; children: React.ReactNode }) {
@@ -48,12 +49,24 @@ function Toggle({ label, hint, checked, onChange }: { label: string; hint?: stri
   )
 }
 
-export function SimSettings({ prefs, set, onRestart, onMenu }: { prefs: SimPrefs; set: (p: Partial<SimPrefs>) => void; onRestart: () => void; onMenu: () => void }) {
+export function SimSettings({
+  prefs,
+  set,
+  onRestart,
+  onMenu,
+  model,
+}: {
+  prefs: SimPrefs
+  set: (p: Partial<SimPrefs>) => void
+  onRestart: () => void
+  onMenu: () => void
+  model: { url?: string; credit?: ModelCredit }
+}) {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <button className={cn("flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-xs font-bold tracking-wide", glass)}>
-          <Settings2 className="size-4 text-sky-300" /> <span className="hidden sm:inline">CÀI ĐẶT & GÓC NHÌN</span>
+        <button className={cn("flex h-11 min-w-11 items-center justify-center gap-2 rounded-2xl px-3.5 text-xs font-bold tracking-wide", glass)}>
+          <Settings2 className="size-4 text-sky-300" /> <span className="hidden lg:inline">CÀI ĐẶT & GÓC NHÌN</span>
         </button>
       </SheetTrigger>
       <SheetContent className="z-[60] overflow-y-auto">
@@ -92,6 +105,24 @@ export function SimSettings({ prefs, set, onRestart, onMenu }: { prefs: SimPrefs
                 </button>
               ))}
             </div>
+            {model.url ? (
+              <div className="space-y-2 rounded-xl border p-3">
+                <Toggle label="Dùng mô hình 3D thật" hint="Ở góc ghế lái vẫn dùng nội thất tự dựng." checked={prefs.useModel} onChange={(v) => set({ useModel: v })} />
+                <Toggle label="Xoay mô hình 180°" hint="Bật nếu xe chạy lùi so với mô hình." checked={prefs.flipModel} onChange={(v) => set({ flipModel: v })} />
+                {model.credit && (
+                  <p className="text-xs text-muted-foreground">
+                    Mô hình “{model.credit.title}” của {model.credit.author} ·{" "}
+                    <a className="underline" href={model.credit.url} target="_blank" rel="noreferrer">
+                      {model.credit.license}
+                    </a>
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="rounded-xl bg-muted p-3 text-xs text-muted-foreground">
+                Chưa có mô hình 3D thật cho xe này — đang dùng xe tự dựng. Thêm file <code>public/sim/models/{prefs.car}.glb</code> để thay.
+              </p>
+            )}
             <div className="flex gap-2">
               {PAINTS.map((p) => (
                 <button
@@ -118,6 +149,18 @@ export function SimSettings({ prefs, set, onRestart, onMenu }: { prefs: SimPrefs
                 ]}
               />
             </div>
+            <div>
+              <div className="mb-1.5 text-sm font-medium">Nút điều khiển trên màn hình</div>
+              <Segmented<SimPrefs["controls"]>
+                value={prefs.controls}
+                onChange={(v) => set({ controls: v })}
+                options={[
+                  { value: "auto", label: "Tự động" },
+                  { value: "keyboard", label: "Gọn (bàn phím)" },
+                  { value: "touch", label: "Cảm ứng" },
+                ]}
+              />
+            </div>
             <Toggle
               label="Lái bằng chuột"
               hint="Rê chuột sang trái/phải giữa màn hình để xoay vô lăng — chính xác hơn bàn phím khi ghép xe."
@@ -128,8 +171,29 @@ export function SimSettings({ prefs, set, onRestart, onMenu }: { prefs: SimPrefs
 
           <Section icon={MonitorCog} title="Hiển thị">
             <Toggle label="Gương chiếu hậu thật" hint="Ảnh phản chiếu trong 3 gương khi ngồi ghế lái." checked={prefs.mirrors} onChange={(v) => set({ mirrors: v })} />
-            <Toggle label="Bóng đổ" hint="Tắt nếu máy chạy chậm." checked={prefs.shadows} onChange={(v) => set({ shadows: v })} />
+            <div>
+              <div className="mb-1.5 text-sm font-medium">Chất lượng hình ảnh</div>
+              <Segmented<SimPrefs["quality"]>
+                value={prefs.quality}
+                onChange={(v) => set({ quality: v })}
+                options={[
+                  { value: "low", label: "Thấp" },
+                  { value: "medium", label: "Vừa" },
+                  { value: "high", label: "Cao" },
+                ]}
+              />
+              <p className="mt-1.5 text-xs text-muted-foreground">Ưu tiên vẻ đẹp của xe (phản chiếu trời thật, bóng đổ, đèn phát sáng); môi trường được giữ nhẹ. Giảm xuống nếu máy chạy giật.</p>
+            </div>
             <Toggle label="Thước khoảng cách tới vạch" hint="Chế độ luyện tập — tắt để thi như thật." checked={prefs.assist} onChange={(v) => set({ assist: v })} />
+          </Section>
+
+          <Section icon={Volume2} title="Âm thanh">
+            <Toggle
+              label="Âm thanh động cơ"
+              hint="Thay đổi theo ga, vòng tua và tốc độ; xe điện dùng tiếng mô-tơ riêng."
+              checked={prefs.engineSound}
+              onChange={(v) => set({ engineSound: v })}
+            />
           </Section>
 
           <Section icon={Keyboard} title="Phím tắt">

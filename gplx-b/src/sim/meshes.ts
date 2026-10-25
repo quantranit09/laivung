@@ -82,6 +82,7 @@ export function noiseTexture(kind: "asphalt" | "grass" | "concrete") {
 export function curbGeometry(shapes: Shape[], segs: { a: V2; b: V2 }[], h: H, offset = 0.42, width = 0.3, height = 0.16) {
   const pos: number[] = []
   const col: number[] = []
+  const uv: number[] = []
   const idx: number[] = []
   const red = new THREE.Color("#c81e1e"), white = new THREE.Color("#f3f4f6")
   let run = 0
@@ -101,11 +102,14 @@ export function curbGeometry(shapes: Shape[], segs: { a: V2; b: V2 }[], h: H, of
     pos.push(inA.x, ya + height, inA.z, outA.x, ya + height, outA.z, inB.x, yb + height, inB.z, outB.x, yb + height, outB.z)
     pos.push(inA.x, ya, inA.z, inB.x, yb, inB.z)
     for (let i = 0; i < 6; i++) col.push(c.r, c.g, c.b)
+    const ua = run - segLen, ub = run
+    uv.push(ua, 0, ua, 0.3, ub, 0, ub, 0.3, ua, 0.2, ub, 0.2)
     idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3, k + 4, k + 5, k, k, k + 5, k + 2)
   }
   const g = new THREE.BufferGeometry()
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3))
   g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3))
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2))
   g.setIndex(idx)
   g.computeVertexNormals()
   return g
@@ -114,12 +118,14 @@ export function curbGeometry(shapes: Shape[], segs: { a: V2; b: V2 }[], h: H, of
 /** Ụ dốc: khối bê tông hình thang dưới đoạn đường dốc, mái taluy thoải ra hai bên. */
 export function moundGeometry(x: number, z0: number, z1: number, topHalf: number, h: H, slope = 1.6, step = 0.5) {
   const pos: number[] = []
+  const uv: number[] = []
   const idx: number[] = []
   let rows = 0
   for (let z = z0; z <= z1 + 1e-6; z += step) {
     const y = h({ x, z })
     const spread = topHalf + y * slope
     pos.push(x + spread, 0, z, x + topHalf, y, z, x - topHalf, y, z, x - spread, 0, z)
+    uv.push((x + spread) / 3, z / 3, (x + topHalf) / 3, z / 3, (x - topHalf) / 3, z / 3, (x - spread) / 3, z / 3)
     if (rows) {
       const a = (rows - 1) * 4, b = rows * 4
       for (let k = 0; k < 3; k++) idx.push(a + k, b + k, a + k + 1, a + k + 1, b + k, b + k + 1)
@@ -128,6 +134,7 @@ export function moundGeometry(x: number, z0: number, z1: number, topHalf: number
   }
   const g = new THREE.BufferGeometry()
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2))
   g.setIndex(idx)
   g.computeVertexNormals()
   return g

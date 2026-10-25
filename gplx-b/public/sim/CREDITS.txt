@@ -1,0 +1,5 @@
+Tài nguyên CC0 từ Poly Haven (https://polyhaven.com) — dùng tự do, không cần ghi công:
+- sky_1k.hdr: "Kloofendal 48d Partly Cloudy (Pure Sky)"
+- asphalt_02_diff.jpg: "Asphalt 02"
+- brushed_concrete_diff.jpg: "Brushed Concrete"
+- leafy_grass_diff.jpg: "Leafy Grass"

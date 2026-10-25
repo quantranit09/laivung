@@ -644,7 +644,7 @@ export class CityDrive implements Scenario {
     if (this.status === "ready")
       return {
         title: "Bài 1 · Kiểm tra an toàn và xuất phát",
-        detail: "Thắt dây an toàn (B), nhả phanh tay (Space), về số D (4), bật xi nhan trái (Q). Bấm “Nhận lệnh xuất phát”.",
+        detail: "Đạp giữ phanh (S) → bật xe (K) → thắt dây an toàn (B) → vào số D (4) → nhả phanh tay (Space) → nhận lệnh (Enter), bật xi nhan trái (Q) rồi xuất phát.",
       }
     if (this.status !== "running") return { title: "Kết thúc bài thi", detail: "" }
     const t = this.currentTask()

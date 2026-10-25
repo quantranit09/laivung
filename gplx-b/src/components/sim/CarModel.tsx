@@ -7,6 +7,7 @@
 import { useMemo, useRef } from "react"
 import { useFrame } from "@react-three/fiber"
 import * as THREE from "three"
+import { ContactShadow } from "./ContactShadow"
 import type { Car, CarSpec } from "@/sim/car"
 
 export interface MirrorTextures {
@@ -257,7 +258,7 @@ export function CarModel({
     return { lower, cabin, archG }
   }, [p, spec])
 
-  const paint = useMemo(() => new THREE.MeshPhysicalMaterial({ color, metalness: 0.55, roughness: 0.28, clearcoat: 1, clearcoatRoughness: 0.08 }), [color])
+  const paint = useMemo(() => new THREE.MeshPhysicalMaterial({ color, metalness: 0.2, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.06 }), [color])
   const glass = useMemo(() => new THREE.MeshPhysicalMaterial({ color: "#0d1117", metalness: 0.2, roughness: 0.06, clearcoat: 1 }), [])
   const black = useMemo(() => new THREE.MeshStandardMaterial({ color: "#16181b", roughness: 0.55 }), [])
 
@@ -289,10 +290,11 @@ export function CarModel({
   const frontZ = p.f
   const rearZ = p.r
   const driverX = 0.36
-  const wheelZ = spec.wheelbase - 0.88
+  const wheelZ = spec.wheelbase - 1.05
 
   return (
     <group ref={root}>
+      {!interior && <ContactShadow spec={spec} />}
       <group ref={body}>
         {/* Thân dưới sơn màu, cabin kính + mui đen */}
         <mesh geometry={geo.lower} material={paint} castShadow />
@@ -377,12 +379,12 @@ export function CarModel({
         ))}
         {/* Gương chiếu hậu ngoài */}
         {[1, -1].map((s) => (
-          <group key={s} position={[s * (W + 0.1), p.belt + 0.08, 2.0 - (isVF ? 0 : 0.1)]}>
-            <mesh material={black}>
-              <boxGeometry args={[0.2, 0.13, 0.08]} />
+          <group key={s} position={[s * (W + 0.08), p.belt + 0.08, 2.0 - (isVF ? 0 : 0.1)]}>
+            <mesh material={black} scale={[1, 1, 0.5]}>
+              <sphereGeometry args={[0.11, 16, 10]} />
             </mesh>
-            <mesh position-z={-0.042} rotation-y={Math.PI}>
-              <planeGeometry args={[0.17, 0.1]} />
+            <mesh position-z={-0.062} rotation-y={Math.PI}>
+              <circleGeometry args={[0.09, 24]} />
               {mirrors ? <meshBasicMaterial map={s > 0 ? mirrors.left : mirrors.right} toneMapped={false} /> : <meshStandardMaterial color="#8b9bb0" metalness={1} roughness={0.1} />}
             </mesh>
           </group>
@@ -391,21 +393,27 @@ export function CarModel({
         {/* Nội thất: chỉ cần khi nhìn từ ghế lái */}
         {interior && (
           <group>
-            {/* Táp-lô thấp, vát */}
-            <mesh position={[0, p.belt - 0.04, wheelZ + 0.5]} rotation-x={-0.12}>
-              <boxGeometry args={[spec.width - 0.22, 0.1, 0.55]} />
-              <meshStandardMaterial color="#2b2a29" roughness={0.85} />
+            {/* Ốp nội thất phủ lên mặt trên thân xe (không thấy tôn sơn trắng từ trong cabin) */}
+            <mesh position={[0, p.belt + 0.075, (p.r + wheelZ + 0.3) / 2]}>
+              <boxGeometry args={[spec.width - 0.12, 0.02, wheelZ + 0.3 - p.r]} />
+              <meshStandardMaterial color="#2e2c2a" roughness={0.95} />
             </mesh>
-            <mesh position={[0, p.belt + 0.02, wheelZ + 0.28]}>
-              <boxGeometry args={[spec.width - 0.3, 0.025, 0.08]} />
-              <meshStandardMaterial color="#a8a29e" roughness={0.6} metalness={0.3} />
+            {/* Táp-lô: mặt trên cao hơn nắp capo một chút như nhìn từ ghế lái thật */}
+            {/* dừng ở chân kính lái, phía trước là nắp capo */}
+            <mesh position={[0, p.belt + 0.03, (wheelZ + 0.12 + p.cabin[p.cabin.length - 2][0]) / 2]} rotation-x={-0.08}>
+              <boxGeometry args={[spec.width - 0.16, 0.16, p.cabin[p.cabin.length - 2][0] - wheelZ - 0.12]} />
+              <meshStandardMaterial color="#232221" roughness={0.9} />
             </mesh>
-            <CenterScreen car={car} position={[0, p.belt + 0.1, wheelZ + 0.3]} rotation={[-0.3, Math.PI, 0]} />
+            <mesh position={[0, p.belt + 0.05, wheelZ + 0.22]}>
+              <boxGeometry args={[spec.width - 0.3, 0.02, 0.06]} />
+              <meshStandardMaterial color="#a8a29e" roughness={0.5} metalness={0.4} />
+            </mesh>
+            <CenterScreen car={car} position={[0, p.belt + 0.17, wheelZ + 0.3]} rotation={[-0.35, Math.PI, 0]} />
             {/* Vô lăng hai chấu */}
-            <group position={[driverX, p.belt - 0.04, wheelZ]} rotation-x={-1.15} rotation-y={Math.PI}>
+            <group position={[driverX, p.belt + 0.06, wheelZ]} rotation={[-0.45, Math.PI, 0, "YXZ"]}>
               <group ref={wheel}>
                 <mesh>
-                  <torusGeometry args={[0.18, 0.02, 12, 40]} />
+                  <torusGeometry args={[0.17, 0.017, 12, 40]} />
                   <meshStandardMaterial color="#141414" roughness={0.6} />
                 </mesh>
                 <mesh>
@@ -420,7 +428,7 @@ export function CarModel({
             </group>
             {/* Trụ A bên trong (mảnh, đúng vị trí ở mép tầm nhìn) */}
             {[1, -1].map((s) => (
-              <Beam key={s} a={v3(s * (W - 0.14), p.belt + 0.04, p.cabin[p.cabin.length - 2][0])} b={v3(s * (W - 0.24), spec.height - 0.06, p.cabin[p.cabin.length - 3][0])} w={0.045} d={0.05} color="#3a3836" />
+              <Beam key={s} a={v3(s * (W - 0.14), p.belt + 0.04, p.cabin[p.cabin.length - 2][0])} b={v3(s * (W - 0.24), spec.height - 0.06, p.cabin[p.cabin.length - 3][0])} w={0.035} d={0.04} color="#4a4744" />
             ))}
             {/* Ốp cửa hai bên */}
             {[1, -1].map((s) => (
@@ -430,7 +438,7 @@ export function CarModel({
               </mesh>
             ))}
             {/* Gương chiếu hậu trong xe */}
-            <group position={[0, spec.height - 0.14, 1.55]}>
+            <group position={[0, spec.height - 0.11, wheelZ - 0.02]}>
               <mesh material={black}>
                 <boxGeometry args={[0.26, 0.08, 0.03]} />
               </mesh>

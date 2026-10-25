@@ -9,9 +9,18 @@ export interface SimPrefs {
   sensitivity: Sensitivity
   mouseSteer: boolean
   mirrors: boolean
-  shadows: boolean
+  /** Phát tiếng động cơ/mô-tơ bám theo trạng thái xe. */
+  engineSound: boolean
+  /** Chất lượng hình ảnh: thấp = không hậu kỳ, không bóng; cao = bóng mềm + đổ bóng tiếp xúc */
+  quality: "low" | "medium" | "high"
   /** Hiện thước khoảng cách tới vạch dừng (chế độ luyện tập) */
   assist: boolean
+  /** Bộ nút trên màn hình: tự chọn theo thiết bị, chỉ dải trạng thái (bàn phím), hay đủ nút cảm ứng */
+  controls: "auto" | "keyboard" | "touch"
+  /** Dùng mô hình 3D tải về (public/sim/models/<xe>.glb) nếu có */
+  useModel: boolean
+  /** Xoay mô hình 180° nếu app đoán nhầm đầu/đuôi xe */
+  flipModel: boolean
 }
 
 const DEFAULTS: SimPrefs = {
@@ -21,8 +30,12 @@ const DEFAULTS: SimPrefs = {
   sensitivity: "normal",
   mouseSteer: false,
   mirrors: true,
-  shadows: true,
+  engineSound: true,
+  quality: "high",
   assist: true,
+  controls: "auto",
+  useModel: true,
+  flipModel: false,
 }
 const KEY = "laivung-sim-prefs"
 

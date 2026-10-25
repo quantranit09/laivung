@@ -1,43 +1,97 @@
 import { useRef, useState } from "react"
-import { ArrowBigLeft, ArrowBigRight, ChevronsLeft, ChevronsRight, Hand, ShieldCheck, TriangleAlert, Video } from "lucide-react"
+import { ArrowBigLeft, ArrowBigRight, Hand, ShieldCheck, TriangleAlert, Video } from "lucide-react"
 import type { Command, Input } from "@/sim/input"
 import { cn } from "@/lib/utils"
 import { glass } from "./Hud"
-import { CAMERA_LABEL, CAMERA_ORDER, type Hud } from "./World"
+import { CAMERA_LABEL, type Hud } from "./World"
 
-const btn = "flex select-none items-center justify-center rounded-xl text-white/85 transition active:scale-95 hover:bg-white/10 touch-none"
+const blinkOn = () => Math.floor(Date.now() / 380) % 2 === 0
 
-/** Vô lăng mini: hiển thị góc đánh lái, kéo ngang để lái, bấm "Giữa" để trả lái. */
-function WheelWidget({ steer, input }: { steer: number; input: Input }) {
-  const start = useRef<{ x: number; prev: number | null } | null>(null)
+function Wheel({ steer, size = 40 }: { steer: number; size?: number }) {
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <div
-        className="relative size-14 cursor-grab touch-none active:cursor-grabbing"
-        onPointerDown={(e) => {
-          ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-          start.current = { x: e.clientX, prev: input.mouseSteer }
-        }}
-        onPointerMove={(e) => {
-          if (!start.current) return
-          input.mouseSteer = Math.max(-1, Math.min(1, -(e.clientX - start.current.x) / 140))
-        }}
-        onPointerUp={() => {
-          input.mouseSteer = start.current?.prev ?? null
-          start.current = null
-        }}
-        title="Kéo ngang để đánh lái"
-      >
-        <svg viewBox="0 0 56 56" className="size-full" style={{ transform: `rotate(${-steer * 450}deg)` }}>
-          <circle cx="28" cy="28" r="24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="5" />
-          <path d="M6 30 H50" stroke="rgba(255,255,255,0.7)" strokeWidth="4" strokeLinecap="round" />
-          <circle cx="28" cy="30" r="6" fill="rgba(255,255,255,0.85)" />
-          <rect x="26" y="2" width="4" height="7" rx="1" fill="#38bdf8" />
-        </svg>
+    <svg viewBox="0 0 56 56" style={{ width: size, height: size, transform: `rotate(${-steer * 450}deg)` }}>
+      <circle cx="28" cy="28" r="24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="5" />
+      <path d="M6 30 H50" stroke="rgba(255,255,255,0.75)" strokeWidth="4" strokeLinecap="round" />
+      <circle cx="28" cy="30" r="6" fill="rgba(255,255,255,0.9)" />
+      <rect x="26" y="2" width="4" height="7" rx="1" fill="#38bdf8" />
+    </svg>
+  )
+}
+
+/** Cột nhỏ cho biết đang đạp phanh/ga sâu bao nhiêu. */
+function Level({ value, tone, label }: { value: number; tone: string; label: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1" title={label}>
+      <div className="relative h-9 w-1.5 overflow-hidden rounded-full bg-white/15">
+        <div className={cn("absolute inset-x-0 bottom-0 rounded-full", tone)} style={{ height: `${value * 100}%` }} />
       </div>
-      <button className="rounded-md px-2 text-[0.65rem] font-semibold text-white/70 hover:bg-white/10" onClick={() => input.centerSteer()}>
-        Giữa
-      </button>
+      <span className="text-[0.55rem] font-bold text-white/50">{label}</span>
+    </div>
+  )
+}
+
+function Icon({ on, warn, title, onClick, children }: { on?: boolean; warn?: boolean; title: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      className={cn(
+        "flex size-9 items-center justify-center rounded-xl transition hover:bg-white/10",
+        warn ? "text-rose-300" : on ? "text-emerald-300" : "text-white/40",
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+/**
+ * Máy tính: một dải trạng thái gọn ở đáy màn hình — điều khiển chính bằng bàn phím,
+ * dải này cho biết trạng thái và bấm được khi cần.
+ */
+export function StatusStrip({ hud, cmd }: { hud: Hud; cmd: (c: Command) => void }) {
+  const blink = blinkOn()
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-3">
+      <div className={cn("pointer-events-auto flex items-center gap-1 rounded-2xl px-3 py-1.5", glass)}>
+        <Level value={hud.brake} tone="bg-rose-400" label="S" />
+        <div className="mx-2 flex gap-0.5" title="Cần số — đạp phanh (S) rồi bấm 1·2·3·4">
+          {(["P", "R", "N", "D"] as const).map((g, i) => (
+            <button
+              key={g}
+              onClick={() => cmd(`gear${g}` as Command)}
+              className={cn("w-7 rounded-lg py-1 text-sm font-extrabold transition", hud.gear === g ? "bg-white text-zinc-900" : "text-white/35 hover:text-white/70")}
+              title={`Số ${g} (phím ${i + 1})`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+        <span className="h-7 w-px bg-white/10" />
+        <Icon title="Xi nhan trái (Q)" on={(hud.signal === "left" || hud.hazard) && blink} onClick={() => cmd("signalLeft")}>
+          <ArrowBigLeft className="size-5" />
+        </Icon>
+        <div className="px-1" title="Vô lăng (A / D)">
+          <Wheel steer={hud.steer} />
+        </div>
+        <Icon title="Xi nhan phải (E)" on={(hud.signal === "right" || hud.hazard) && blink} onClick={() => cmd("signalRight")}>
+          <ArrowBigRight className="size-5" />
+        </Icon>
+        <span className="h-7 w-px bg-white/10" />
+        <Icon title="Dây an toàn (B)" on={hud.seatbelt} warn={!hud.seatbelt} onClick={() => cmd("seatbelt")}>
+          <ShieldCheck className="size-4.5" />
+        </Icon>
+        <Icon title="Phanh tay (Space — nhả phải đạp phanh)" warn={hud.handbrake} onClick={() => cmd("handbrake")}>
+          <span className="flex size-5 items-center justify-center rounded-full border-2 border-current text-[0.6rem] font-black">P</span>
+        </Icon>
+        <Icon title="Đèn cảnh báo nguy hiểm (H)" warn={hud.hazard && blink} onClick={() => cmd("hazard")}>
+          <TriangleAlert className="size-4.5" />
+        </Icon>
+        <Icon title={`Góc nhìn: ${CAMERA_LABEL[hud.camera]} (C)`} on onClick={() => cmd("camera")}>
+          <Video className="size-4.5" />
+        </Icon>
+        <Level value={hud.throttle} tone="bg-emerald-400" label="W" />
+      </div>
     </div>
   )
 }
@@ -54,7 +108,7 @@ function holdKey(input: Input, action: "left" | "right") {
 }
 
 /** Bàn đạp dạng thanh kéo: chạm/kéo theo chiều dọc để đạp nông–sâu, thả ra là nhả. */
-function Pedal({ label, hint, kind, input, tone }: { label: string; hint: string; kind: "throttle" | "brake"; input: Input; tone: string }) {
+function Pedal({ label, kind, input, tone, tall }: { label: string; kind: "throttle" | "brake"; input: Input; tone: string; tall?: boolean }) {
   const [v, setV] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
   const set = (clientY: number) => {
@@ -70,7 +124,7 @@ function Pedal({ label, hint, kind, input, tone }: { label: string; hint: string
   return (
     <div
       ref={ref}
-      className={cn("relative flex h-28 w-14 cursor-pointer touch-none flex-col items-center justify-between overflow-hidden rounded-2xl py-2 select-none", glass)}
+      className={cn("relative flex w-16 touch-none items-start justify-center overflow-hidden rounded-2xl pt-2 select-none", tall ? "h-36 short:h-28" : "h-28 short:h-22", glass)}
       onPointerDown={(e) => {
         ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
         set(e.clientY)
@@ -79,84 +133,86 @@ function Pedal({ label, hint, kind, input, tone }: { label: string; hint: string
       onPointerUp={release}
       onPointerCancel={release}
     >
-      <div className={cn("absolute inset-x-0 bottom-0 transition-[height] duration-75", tone)} style={{ height: `${v * 100}%` }} />
-      <span className="relative text-[0.7rem] font-bold tracking-wide">{label}</span>
-      <div className="relative flex flex-col gap-1">
-        {[0, 1, 2, 3].map((i) => (
-          <span key={i} className="h-0.5 w-6 rounded bg-white/40" />
-        ))}
-      </div>
-      <span className="relative hidden text-[0.6rem] text-white/60 sm:block">{hint}</span>
+      <div className={cn("absolute inset-x-0 bottom-0", tone)} style={{ height: `${v * 100}%` }} />
+      <span className="relative text-xs font-bold">{label}</span>
     </div>
   )
 }
 
-export function ControlDock({ hud, input, cmd }: { hud: Hud; input: Input; cmd: (c: Command) => void }) {
-  const blink = Math.floor(Date.now() / 380) % 2 === 0
-  const camIdx = CAMERA_ORDER.indexOf(hud.camera) + 1
+/**
+ * Màn hình cảm ứng: tay trái lái (vô lăng kéo được + xi nhan), tay phải đạp phanh/ga,
+ * cần số dọc bên phải. Các công tắc phụ nằm trong một hàng nhỏ.
+ */
+export function TouchDock({ hud, input, cmd }: { hud: Hud; input: Input; cmd: (c: Command) => void }) {
+  const blink = blinkOn()
+  const drag = useRef<{ x: number; prev: number | null } | null>(null)
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-3 flex items-end justify-between gap-2 px-3 sm:justify-center sm:gap-3">
-      {/* Cần số */}
-      <div className={cn("pointer-events-auto flex flex-col gap-1 rounded-2xl p-1.5", glass)}>
-        {(["P", "R", "N", "D"] as const).map((g) => (
-          <button
-            key={g}
-            onClick={() => cmd(`gear${g}` as Command)}
-            className={cn(btn, "size-8 text-sm font-extrabold", hud.gear === g ? "bg-white text-zinc-900 hover:bg-white" : "text-white/50")}
+    <>
+      <div className="pointer-events-none absolute inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] flex items-end justify-between pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))]">
+        {/* Tay trái: vô lăng */}
+        <div className={cn("pointer-events-auto flex items-center gap-1 rounded-3xl p-2", glass)}>
+          <button className="flex size-11 items-center justify-center rounded-2xl bg-white/5 active:bg-white/15" {...holdKey(input, "left")}>
+            ‹
+          </button>
+          <div
+            className="touch-none"
+            onPointerDown={(e) => {
+              ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+              drag.current = { x: e.clientX, prev: input.mouseSteer }
+            }}
+            onPointerMove={(e) => {
+              if (drag.current) input.mouseSteer = Math.max(-1, Math.min(1, -(e.clientX - drag.current.x) / 120))
+            }}
+            onPointerUp={() => {
+              input.mouseSteer = drag.current?.prev ?? null
+              drag.current = null
+            }}
+            onDoubleClick={() => input.centerSteer()}
           >
+            <Wheel steer={hud.steer} size={64} />
+          </div>
+          <button className="flex size-11 items-center justify-center rounded-2xl bg-white/5 active:bg-white/15" {...holdKey(input, "right")}>
+            ›
+          </button>
+        </div>
+
+        {/* Tay phải: bàn đạp */}
+        <div className="pointer-events-auto flex items-end gap-2">
+          <Pedal label="PHANH" kind="brake" input={input} tone="bg-rose-500/50" />
+          <Pedal label="GA" kind="throttle" input={input} tone="bg-emerald-500/50" tall />
+        </div>
+      </div>
+
+      {/* Công tắc phụ + cần số */}
+      {/* Dọc: trên bàn đạp; ngang (màn thấp): cạnh bàn đạp */}
+      <div className={cn("pointer-events-auto absolute right-3 bottom-44 flex flex-col gap-1 rounded-2xl p-1.5 short:right-[10.5rem] short:bottom-3", glass)}>
+        {(["P", "R", "N", "D"] as const).map((g) => (
+          <button key={g} onClick={() => cmd(`gear${g}` as Command)} className={cn("size-9 rounded-xl text-sm font-extrabold", hud.gear === g ? "bg-white text-zinc-900" : "text-white/40")}>
             {g}
           </button>
         ))}
       </div>
-
-      {/* Xi nhan + vô lăng */}
-      <div className={cn("pointer-events-auto rounded-3xl px-3 py-2", glass)}>
-        <div className="flex items-center justify-center gap-2">
-          <button className={cn(btn, "size-9", (hud.signal === "left" || hud.hazard) && blink && "bg-emerald-500/30 text-emerald-300")} onClick={() => cmd("signalLeft")} title="Xi nhan trái (Q)">
-            <ArrowBigLeft className="size-5" />
-          </button>
-          <button className={cn(btn, "size-9", hud.hazard && blink && "bg-rose-500/40 text-rose-200")} onClick={() => cmd("hazard")} title="Đèn cảnh báo nguy hiểm (H)">
-            <TriangleAlert className="size-5" />
-          </button>
-          <button className={cn(btn, "size-9", (hud.signal === "right" || hud.hazard) && blink && "bg-emerald-500/30 text-emerald-300")} onClick={() => cmd("signalRight")} title="Xi nhan phải (E)">
-            <ArrowBigRight className="size-5" />
-          </button>
-        </div>
-        <div className="mt-1 flex items-center gap-2">
-          <button className={cn(btn, "h-12 w-12 bg-white/5")} {...holdKey(input, "left")} title="Giữ để đánh lái trái (A / ←)">
-            <ChevronsLeft className="size-6" />
-          </button>
-          <WheelWidget steer={hud.steer} input={input} />
-          <button className={cn(btn, "h-12 w-12 bg-white/5")} {...holdKey(input, "right")} title="Giữ để đánh lái phải (D / →)">
-            <ChevronsRight className="size-6" />
-          </button>
-        </div>
-        <div className="mt-1.5 flex justify-center gap-1.5">
-          <button
-            onClick={() => cmd("seatbelt")}
-            className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.65rem] font-semibold", hud.seatbelt ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/25 text-rose-200")}
-          >
-            <ShieldCheck className="size-3" /> Dây an toàn
-          </button>
-          <button
-            onClick={() => cmd("handbrake")}
-            className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.65rem] font-semibold", hud.handbrake ? "bg-rose-500/25 text-rose-200" : "bg-white/10 text-white/60")}
-          >
-            <Hand className="size-3" /> Phanh tay
-          </button>
-        </div>
+      {/* Dọc: trên vô lăng; ngang: cạnh vô lăng */}
+      <div className={cn("pointer-events-auto absolute bottom-28 left-3 flex gap-0.5 rounded-2xl p-1 short:bottom-3 short:left-[12.75rem]", glass)}>
+        <Icon title="Xi nhan trái" on={(hud.signal === "left" || hud.hazard) && blink} onClick={() => cmd("signalLeft")}>
+          <ArrowBigLeft className="size-5" />
+        </Icon>
+        <Icon title="Cảnh báo nguy hiểm" warn={hud.hazard && blink} onClick={() => cmd("hazard")}>
+          <TriangleAlert className="size-4.5" />
+        </Icon>
+        <Icon title="Xi nhan phải" on={(hud.signal === "right" || hud.hazard) && blink} onClick={() => cmd("signalRight")}>
+          <ArrowBigRight className="size-5" />
+        </Icon>
+        <Icon title="Dây an toàn" on={hud.seatbelt} warn={!hud.seatbelt} onClick={() => cmd("seatbelt")}>
+          <ShieldCheck className="size-4.5" />
+        </Icon>
+        <Icon title="Phanh tay" warn={hud.handbrake} onClick={() => cmd("handbrake")}>
+          <Hand className="size-4.5" />
+        </Icon>
+        <Icon title="Góc nhìn" on onClick={() => cmd("camera")}>
+          <Video className="size-4.5" />
+        </Icon>
       </div>
-
-      {/* Camera + bàn đạp */}
-      <div className="pointer-events-auto flex items-end gap-2">
-        <button className={cn(btn, "flex-col gap-0.5 rounded-2xl px-2.5 py-2", glass)} onClick={() => cmd("camera")} title="Đổi góc nhìn (C)">
-          <Video className="size-4" />
-          <span className="text-xs font-bold tabular-nums">{camIdx}</span>
-          <span className="hidden text-[0.6rem] text-white/60 lg:block">{CAMERA_LABEL[hud.camera]}</span>
-        </button>
-        <Pedal label="PHANH" hint="S / ↓" kind="brake" input={input} tone="bg-rose-500/45" />
-        <Pedal label="GA" hint="W / ↑" kind="throttle" input={input} tone="bg-emerald-500/45" />
-      </div>
-    </div>
+    </>
   )
 }
