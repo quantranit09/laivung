@@ -7,6 +7,7 @@ import type { CityDrive } from "@/sim/city"
 import type { Shape } from "@/sim/geom"
 import { PASS_SCORE, type Fault, type Instruction } from "@/sim/scenario"
 import { cn } from "@/lib/utils"
+import { tap } from "./tap"
 import { rearInset, type Hud } from "./World"
 
 /** Kính mờ tối — nền chung của mọi bảng điều khiển trên màn mô phỏng. */
@@ -87,7 +88,7 @@ export function TopBar({
       </Seg>
       <Seg className="px-1.5 sm:px-2">
         <button
-          onClick={onEngine}
+          {...tap(onEngine)}
           className={cn(
             "flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold tracking-wide whitespace-nowrap transition sm:px-3",
             hud.engine ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/40" : "animate-pulse bg-rose-500/20 text-rose-200 ring-1 ring-rose-400/60",
@@ -117,7 +118,7 @@ export function InstructionPanel({ instr, alarm, assist, faults, narrow }: { ins
           className={cn(
             "flex items-start gap-2 rounded-xl px-3 py-2 text-xs text-white shadow-lg backdrop-blur-xl",
             f.fatal ? "bg-rose-700/85" : "bg-amber-600/80",
-            i > 0 && "opacity-60",
+            i > 0 && "opacity-60 short:hidden",
           )}
         >
           <b className="shrink-0 tabular-nums">{f.fatal ? "Đình chỉ" : `−${f.points}`}</b>
@@ -275,10 +276,12 @@ export function StartChecklist({ hud, touch, narrow, onBegin }: { hud: Hud; touc
   const next = steps.findIndex(([, , ok]) => !ok)
   return (
     <div className={cn("pointer-events-none w-[min(92vw,360px)] rounded-2xl p-3.5 short:w-[min(44vw,320px)] short:p-2.5 short:text-[0.7rem]", narrow && "max-sm:w-[calc(58vw-1.25rem)]", glass)}>
-      <div className="text-sm font-bold">Chuẩn bị xuất phát</div>
+      <div className="text-sm font-bold">
+        Chuẩn bị xuất phát <span className="hidden font-semibold text-sky-300 tabular-nums short:inline">· {next + 1}/{steps.length}</span>
+      </div>
       <ol className="mt-2 space-y-1.5 text-xs short:space-y-1">
         {steps.map(([t, key, ok], i) => (
-          <li key={t} className={cn("flex items-center gap-2", ok ? "text-emerald-300" : i === next ? "font-semibold text-white" : "text-white/60")}>
+          <li key={t} className={cn("flex items-center gap-2", ok ? "text-emerald-300" : i === next ? "font-semibold text-white" : "text-white/60", i !== next && "short:hidden")}>
             <span className={cn("flex size-4.5 shrink-0 items-center justify-center rounded-full text-[0.6rem] font-bold", ok ? "bg-emerald-400 text-zinc-900" : "bg-white/15")}>
               {ok ? "✓" : i + 1}
             </span>
@@ -291,7 +294,7 @@ export function StartChecklist({ hud, touch, narrow, onBegin }: { hud: Hud; touc
         Sau khi nhận lệnh: bật xi nhan trái{touch ? "" : " (Q)"}, nhả phanh cho xe tự bò qua vạch trong 20 giây.
       </p>
       <button
-        onClick={onBegin}
+        {...tap(onBegin)}
         className={cn("pointer-events-auto mt-2.5 w-full rounded-xl bg-sky-500 py-2.5 text-sm font-bold short:mt-1.5 short:py-1.5 text-white transition active:bg-sky-400", !touch && "sm:hidden")}
       >
         Nhận lệnh xuất phát

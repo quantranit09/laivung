@@ -4,7 +4,7 @@ import { Environment } from "@react-three/drei"
 import { Bloom, EffectComposer, SMAA, ToneMapping, Vignette } from "@react-three/postprocessing"
 import { ToneMappingMode } from "postprocessing"
 import * as THREE from "three"
-import { ArrowLeft, CircleParking, Keyboard, Pause, Play, RotateCcw, ShieldAlert } from "lucide-react"
+import { ArrowLeft, CircleParking, Keyboard, Maximize, Minimize, Pause, Play, RotateCcw, ShieldAlert, Smartphone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Car, CARS } from "@/sim/car"
@@ -24,6 +24,7 @@ import { glass, InstructionPanel, Minimap, RearCamFrame, Result, StartChecklist,
 import { SKY_HDR } from "./pbr"
 import { useSimPrefs } from "./prefs"
 import { SimSettings } from "./SimSettings"
+import { tap } from "./tap"
 import { YardMesh } from "./YardMesh"
 import { makeMirrors, Renderer, SimLoop, type CameraMode, type Hud } from "./World"
 
@@ -171,8 +172,8 @@ function Drive({
 
   // Móc gỡ lỗi khi phát triển: window.__sim.car / .scenario
   useEffect(() => {
-    if (import.meta.env.DEV) (window as unknown as { __sim: object }).__sim = { car, scenario }
-  }, [car, scenario])
+    if (import.meta.env.DEV) (window as unknown as { __sim: object }).__sim = { car, scenario, input }
+  }, [car, scenario, input])
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -225,6 +226,23 @@ function Drive({
     const r = box.current!.getBoundingClientRect()
     if (prefs.mouseSteer && e.pointerType === "mouse") input.mouseSteer = Math.max(-1, Math.min(1, -(e.clientX - r.left - r.width / 2) / (r.width * 0.32)))
     if (drag.current !== null) input.lookDrag = Math.max(-1.3, Math.min(1.3, -(e.clientX - drag.current) / 260))
+  }
+
+  // Điện thoại: toàn màn hình + khoá xoay ngang (Android; iPhone chưa hỗ trợ nên nút tự ẩn)
+  const [fullscreen, setFullscreen] = useState(false)
+  useEffect(() => {
+    const on = () => setFullscreen(!!document.fullscreenElement)
+    document.addEventListener("fullscreenchange", on)
+    return () => document.removeEventListener("fullscreenchange", on)
+  }, [])
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) return await document.exitFullscreen()
+      await document.documentElement.requestFullscreen({ navigationUI: "hide" })
+      await (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.("landscape")
+    } catch {
+      /* trình duyệt không cho khoá xoay — vẫn giữ toàn màn hình */
+    }
   }
 
   const model = useCarModelFile(prefs.car)
@@ -312,7 +330,12 @@ function Drive({
           )}
           <div className="pointer-events-auto ml-auto flex flex-col items-end gap-2">
             <div className="flex gap-2">
-              <button className={cn("flex size-11 items-center justify-center rounded-2xl", glass)} onClick={() => cmd("pause")} title="Tạm dừng (Esc)">
+              {touch && document.fullscreenEnabled && (
+                <button className={cn("flex size-11 items-center justify-center rounded-2xl", glass)} {...tap(toggleFullscreen)} title="Toàn màn hình, xoay ngang">
+                  {fullscreen ? <Minimize className="size-4" /> : <Maximize className="size-4" />}
+                </button>
+              )}
+              <button className={cn("flex size-11 items-center justify-center rounded-2xl", glass)} {...tap(() => cmd("pause"))} title="Tạm dừng (Esc)">
                 {isPaused ? <Play className="size-4" /> : <Pause className="size-4" />}
               </button>
               <SimSettings prefs={prefs} set={setPrefs} onRestart={onRestart} onMenu={onMenu} model={model} />
@@ -332,6 +355,12 @@ function Drive({
         )}
 
         {hud?.gear === "R" && <RearCamFrame width={width} height={height} steer={hud.steer} />}
+
+        {touch && height > width && hud?.status === "ready" && (
+          <div className={cn("pointer-events-none absolute inset-x-0 bottom-[22rem] mx-auto flex w-fit items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium", glass)}>
+            <Smartphone className="size-4 rotate-90 text-sky-300" /> Xoay ngang điện thoại để lái dễ hơn
+          </div>
+        )}
 
         {toast && <div className={cn("pointer-events-none absolute top-1/3 left-1/2 -translate-x-1/2 rounded-2xl px-4 py-2 text-sm", glass)}>{toast}</div>}
 
