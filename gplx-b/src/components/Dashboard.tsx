@@ -2,7 +2,6 @@ import { useMemo } from "react"
 import { ArrowRight, Brain, CalendarCheck, CalendarDays, ClipboardCheck, Flame, NotebookPen, Siren, Target } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 import { CHAPTERS, EXAM_FORMATS, QUESTIONS } from "@/lib/questions"
 import { chapterMastery, dayKey, daysToExam, lessonRange, lessonTitle, passProbability, stats } from "@/lib/srs"
 import { useStudyPlan } from "@/components/StudyView"
@@ -31,6 +30,7 @@ export function Dashboard() {
   const exam = useStore((s) => s.exam)
   const setView = useStore((s) => s.setView)
   const setSettingsOpen = useStore((s) => s.setSettingsOpen)
+  const openStudyChapter = useStore((s) => s.openStudyChapter)
   const examDate = useStore((s) => s.settings.examDate)
   const plan = useStudyPlan()
   const days = daysToExam(examDate)
@@ -40,7 +40,6 @@ export function Dashboard() {
   const chapters = useMemo(() => chapterMastery(progress), [progress])
   const streak = streakDays(log)
   const recent = history.slice(0, 5)
-  const passPct = Math.round(pp.pass * 100)
   const f = EXAM_FORMATS[format]
   const resume = exam ? "exam" : study ? (study.kind === "wrong" ? "wrong" : "study") : undefined
 
@@ -130,30 +129,7 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardDescription className="flex items-center gap-1.5">
-              <Target className="size-4" /> Khả năng đậu ước tính · đề {f.total} câu
-            </CardDescription>
-            <CardTitle className="flex items-end gap-2">
-              <span
-                className={cn(
-                  "text-5xl font-extrabold tabular-nums",
-                  passPct >= 90 ? "text-success" : passPct >= 60 ? "text-warning" : "text-destructive",
-                )}
-              >
-                {passPct}%
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <Meter label="Câu điểm liệt (phải đúng)" value={pp.critical} />
-            <Meter label={`Câu thường (cần ≥ ${f.pass - 1}/${f.total - 1})`} value={pp.normal} />
-            <p className="text-xs text-muted-foreground">
-              Tính từ mức thuộc của từng câu trong 600 câu. Mục tiêu: ≥ 95% và đậu 5 đề thi thử liên tiếp.
-            </p>
-          </CardContent>
-        </Card>
+        <Readiness pp={pp} total={f.total} seen={st.seen} onStudy={() => setView("study")} />
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -167,13 +143,17 @@ export function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Mức thuộc theo chương</CardTitle>
-            <CardDescription>Thanh đậm = đã thuộc (trí nhớ bền ≥ 7 ngày) · nhạt = đã gặp</CardDescription>
+            <CardDescription>Thanh đậm = đã thuộc (trí nhớ bền ≥ 7 ngày) · nhạt = đã gặp. Bấm vào chương để học.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {CHAPTERS.map((c) => {
               const m = chapters[c.id]
               return (
-                <div key={c.id} className="space-y-1.5">
+                <button
+                  key={c.id}
+                  onClick={() => openStudyChapter(String(c.id))}
+                  className="-mx-2 block w-[calc(100%+1rem)] space-y-1.5 rounded-lg px-2 py-1 text-left transition hover:bg-accent"
+                >
                   <div className="flex justify-between gap-2 text-sm">
                     <span className="truncate">
                       <span className="font-medium">C{c.id}.</span> {c.name}
@@ -186,7 +166,7 @@ export function Dashboard() {
                     <div className="absolute inset-y-0 left-0 bg-primary/25" style={{ width: `${(m.seen / m.total) * 100}%` }} />
                     <div className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${(m.mastered / m.total) * 100}%` }} />
                   </div>
-                </div>
+                </button>
               )
             })}
           </CardContent>
@@ -238,14 +218,108 @@ export function Dashboard() {
   )
 }
 
-function Meter({ label, value }: { label: string; value: number }) {
+/** Ngưỡng câu thường cần nhớ: đề cho sai tối đa (total - pass) câu, nên cần ~90% */
+const NORMAL_TARGET = 0.9
+
+function Readiness({
+  pp,
+  total,
+  seen,
+  onStudy,
+}: {
+  pp: ReturnType<typeof passProbability>
+  total: number
+  seen: number
+  onStudy: () => void
+}) {
+  const pct = Math.round(pp.pass * 100)
+  const crit = pp.critRemembered / pp.critTotal
+  const normal = pp.normalRemembered / pp.normalTotal
+  const level =
+    pct >= 90
+      ? { text: "Sẵn sàng đi thi", tone: "text-success", chip: "bg-success/15 text-success" }
+      : pct >= 60
+        ? { text: "Gần sẵn sàng", tone: "text-warning-foreground dark:text-warning", chip: "bg-warning/20 text-warning-foreground dark:text-warning" }
+        : { text: "Chưa sẵn sàng", tone: "text-destructive", chip: "bg-destructive/10 text-destructive" }
+  const advice =
+    crit < 0.95 && crit <= normal
+      ? "Ưu tiên câu điểm liệt — chỉ cần sai 1 câu là trượt dù đủ điểm."
+      : normal < NORMAL_TARGET
+        ? `Học thêm câu thường để nhớ chắc trên ${Math.round(NORMAL_TARGET * 100)}% — đề chỉ cho sai tối đa ${total === 30 ? 3 : 5} câu.`
+        : "Duy trì ôn đúng hạn và thi thử để quen áp lực thời gian."
+
   return (
-    <div className="space-y-1">
-      <div className="flex justify-between">
+    <Card>
+      <CardHeader>
+        <CardDescription className="flex items-center gap-1.5">
+          <Target className="size-4" /> Mức sẵn sàng thi · đề {total} câu
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        {seen === 0 ? (
+          <div className="space-y-3">
+            <p className="text-lg font-semibold">Chưa có dữ liệu</p>
+            <p className="text-muted-foreground">
+              Học bài đầu tiên để app bắt đầu ước tính khả năng đậu của bạn dựa trên mức nhớ từng câu.
+            </p>
+            <Button variant="outline" size="sm" onClick={onStudy}>
+              Mở lộ trình học <ArrowRight />
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div>
+              <div className="flex items-center gap-3">
+                <span className={cn("text-4xl font-extrabold tabular-nums", level.tone)}>{pct}%</span>
+                <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", level.chip)}>{level.text}</span>
+              </div>
+              <p className="mt-1 text-muted-foreground">Ước tính cơ hội đậu nếu đi thi ngay hôm nay.</p>
+            </div>
+            <GoalBar
+              label="Câu điểm liệt nhớ chắc"
+              value={pp.critRemembered}
+              max={pp.critTotal}
+              target={1}
+              hint={`cần đủ ${pp.critTotal}`}
+            />
+            <GoalBar
+              label="Câu thường nhớ chắc"
+              value={pp.normalRemembered}
+              max={pp.normalTotal}
+              target={NORMAL_TARGET}
+              hint={`cần ≥ ${Math.round(pp.normalTotal * NORMAL_TARGET)}`}
+            />
+            <p className="rounded-lg bg-muted/70 p-2.5 text-xs">{advice}</p>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function GoalBar({ label, value, max, target, hint }: { label: string; value: number; max: number; target: number; hint: string }) {
+  const ratio = value / max
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between gap-2">
         <span>{label}</span>
-        <span className="font-semibold tabular-nums">{Math.round(value * 100)}%</span>
+        <span className="text-muted-foreground tabular-nums">
+          <b className="text-foreground">{Math.round(value)}</b>/{max} · {hint}
+        </span>
       </div>
-      <Progress value={value * 100} className="h-1.5" />
+      <div className="relative h-2 rounded-full bg-muted">
+        <div
+          className={cn("absolute inset-y-0 left-0 rounded-full", ratio >= target ? "bg-success" : "bg-primary")}
+          style={{ width: `${Math.min(1, ratio) * 100}%` }}
+        />
+        {target < 1 && (
+          <div
+            className="absolute -inset-y-1 w-0.5 rounded bg-foreground/60"
+            style={{ left: `${target * 100}%` }}
+            title="Mốc cần đạt"
+          />
+        )}
+      </div>
     </div>
   )
 }

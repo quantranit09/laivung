@@ -94,8 +94,11 @@ interface State extends Data {
   sync: SyncStatus
   lastSynced?: number
   settingsOpen: boolean
+  /** Chương cần mở sẵn khi vào trang Học ("0" = điểm liệt) */
+  openChapter?: string
 
   setSettingsOpen: (b: boolean) => void
+  openStudyChapter: (chapter: string) => void
   setView: (v: View) => void
   setSettings: (s: Partial<Settings>) => void
   startStudy: (kind: StudySession["kind"], queue: number[], opts: { label: string; lesson?: string }) => void
@@ -159,6 +162,7 @@ export const useStore = create<State>()(
         settingsOpen: false,
 
         setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+        openStudyChapter: (openChapter) => set({ openChapter, view: "study" }),
 
         setView: (view) => set({ view }),
         setSettings: (s) => set({ settings: { ...get().settings, ...s }, settingsAt: Date.now() }),

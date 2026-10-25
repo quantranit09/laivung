@@ -80,9 +80,21 @@ function StudySetup() {
   const progress = useStore((s) => s.progress)
   const other = useStore((s) => s.study)
   const examDate = useStore((s) => s.settings.examDate)
+  const openChapter = useStore((s) => s.openChapter)
   const plan = useStudyPlan()
   const days = daysToExam(examDate)
-  const [open, setOpen] = useState(() => String(plan.next?.chapter ?? 0))
+  const [open, setOpen] = useState(() => openChapter ?? String(plan.next?.chapter ?? 0))
+  useEffect(() => {
+    if (!openChapter) return
+    setOpen(openChapter)
+    document.getElementById(`chapter-${openChapter}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
+    useStore.setState({ openChapter: undefined })
+  }, [openChapter])
+  const pickChapter = (key: string) => {
+    setOpen(key)
+    // Đợi accordion mở rồi mới cuộn tới.
+    setTimeout(() => document.getElementById(`chapter-${key}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50)
+  }
   const reachedDaily = plan.doneNew >= plan.dailyNew
   const groups = [
     { key: "0", title: "60 câu điểm liệt", sub: "Ưu tiên học trước — sai 1 câu là trượt", lessons: CRITICAL_LESSONS },
@@ -140,8 +152,22 @@ function StudySetup() {
 
       <Card className="gap-2 py-4">
         <CardHeader className="px-4">
-          <CardTitle className="text-base">Lộ trình học</CardTitle>
-          <CardDescription>Mỗi bài ~15 câu liên tiếp theo thứ tự trong bộ đề. Bấm vào bài bất kỳ để học hoặc ôn lại.</CardDescription>
+          <CardTitle className="text-base">Học theo chương</CardTitle>
+          <CardDescription>Chọn chương, rồi chọn bài (~15 câu liên tiếp theo thứ tự trong bộ đề) để học hoặc ôn lại.</CardDescription>
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pt-2 pb-1">
+            {groups.map((g) => (
+              <button
+                key={g.key}
+                onClick={() => pickChapter(g.key)}
+                className={cn(
+                  "shrink-0 rounded-full border px-3 py-1 text-xs font-medium whitespace-nowrap transition hover:bg-accent",
+                  open === g.key && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
+                )}
+              >
+                {g.key === "0" ? "Điểm liệt" : `C${g.key}. ${CHAPTERS[Number(g.key) - 1].short}`}
+              </button>
+            ))}
+          </div>
         </CardHeader>
         <CardContent className="px-2 sm:px-4">
           <Accordion type="single" collapsible value={open} onValueChange={setOpen}>
@@ -152,7 +178,7 @@ function StudySetup() {
               const mastered = st.reduce((a, x) => a + x.mastered, 0)
               const due = st.reduce((a, x) => a + x.due, 0)
               return (
-                <AccordionItem key={g.key} value={g.key}>
+                <AccordionItem key={g.key} value={g.key} id={`chapter-${g.key}`} className="scroll-mt-20">
                   <AccordionTrigger className="px-2 hover:no-underline">
                     <div className="flex min-w-0 flex-1 items-center gap-3">
                       <span
@@ -173,7 +199,8 @@ function StudySetup() {
                       </div>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent className="px-2">
+                  <AccordionContent className="space-y-3 px-2">
+                    <ChapterActions lessons={g.lessons} onLesson={plan.startLesson} />
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {g.lessons.map((l, i) => (
                         <LessonTile key={l.id} lesson={l} status={st[i]} isNext={plan.next?.id === l.id} onStart={() => plan.startLesson(l)} />
@@ -187,6 +214,34 @@ function StudySetup() {
         </CardContent>
       </Card>
       <HowItWorks />
+    </div>
+  )
+}
+
+/** Nút nhanh trong mỗi chương: học tiếp bài chưa xong của chương, hoặc ôn các câu đến hạn của chương. */
+function ChapterActions({ lessons, onLesson }: { lessons: Lesson[]; onLesson: (l: Lesson) => void }) {
+  const progress = useStore((s) => s.progress)
+  const startStudy = useStore((s) => s.startStudy)
+  const sessionSize = useStore((s) => s.settings.sessionSize)
+  const nextInChapter = lessons.find((l) => l.ns.some((n) => !progress[n]))
+  const due = lessons.flatMap((l) => l.ns).filter((n) => isDue(progress[n]))
+  const name = lessons[0].chapter ? `chương ${lessons[0].chapter}` : "câu điểm liệt"
+  return (
+    <div className="flex flex-wrap gap-2">
+      {nextInChapter && (
+        <Button size="sm" onClick={() => onLesson(nextInChapter)}>
+          Học tiếp {name} · Bài {nextInChapter.index} <ArrowRight />
+        </Button>
+      )}
+      {due.length > 0 && (
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => startStudy("study", buildReviewSession(due, sessionSize), { label: `Ôn ${name}` })}
+        >
+          Ôn {Math.min(due.length, sessionSize)} câu đến hạn của {name}
+        </Button>
+      )}
     </div>
   )
 }

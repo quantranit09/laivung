@@ -165,14 +165,22 @@ function binomAtLeast(n: number, p: number, k: number) {
  */
 export function passProbability(progress: Progress, format: ExamFormat, now = Date.now()) {
   const f = EXAM_FORMATS[format]
-  let pc = 0, nc = 0, pn = 0, nn = 0
+  let pc = 0, nc = 0, pn = 0, nn = 0, rc = 0, rn = 0
   for (const q of QUESTIONS) {
     const p = recallProbability(q, progress[q.n], now)
-    if (q.k) { pc += p; nc++ } else { pn += p; nn++ }
+    const r = retrievability(q.n, progress[q.n], now)
+    if (q.k) { pc += p; rc += r; nc++ } else { pn += p; rn += r; nn++ }
   }
   const critical = pc / nc
   const normal = pn / nn
-  return { critical, normal, pass: critical * binomAtLeast(f.total - 1, normal, f.pass - 1) }
+  return {
+    pass: critical * binomAtLeast(f.total - 1, normal, f.pass - 1),
+    /** Số câu ước tính còn nhớ chắc (không tính đoán mò) */
+    critRemembered: rc,
+    critTotal: nc,
+    normalRemembered: rn,
+    normalTotal: nn,
+  }
 }
 
 export function chapterMastery(progress: Progress) {
