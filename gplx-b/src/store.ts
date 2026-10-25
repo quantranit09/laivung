@@ -22,7 +22,7 @@ export interface StudySession {
   label: string
   queue: number[]
   pos: number
-  /** Số lần còn phải nhớ ra đúng trong phiên, theo câu */
+  /** 0 = đã xong; 1 = cần trả lời chắc chắn thêm một lần */
   need: Record<number, number>
   /** Những câu đã được chấm FSRS ở lần làm đầu tiên trong phiên */
   graded: number[]
@@ -139,11 +139,38 @@ const emptyData = (): Data => ({
   resetAt: 0,
 })
 
-/** Câu mới: phải nhớ ra đúng 2 lần trong phiên (điểm liệt 3 lần); câu ôn: 1 lần. */
-const initialNeed = (n: number, isNew: boolean) => (isNew ? (BY_N.get(n)!.k ? 3 : 2) : 1)
-/** Câu sai quay lại sau 3 câu; câu đúng nhưng chưa đủ số lần thì giãn xa hơn (5 câu). */
+const profileKey = (user: string) => `laivung-profile-${user}`
+const dataFrom = (s: Data): Data => ({
+  progress: s.progress,
+  settings: s.settings,
+  settingsAt: s.settingsAt,
+  study: s.study,
+  studyAt: s.studyAt,
+  exam: s.exam,
+  examAt: s.examAt,
+  history: s.history,
+  log: s.log,
+  resetAt: s.resetAt,
+})
+const saveProfile = (user: string, data: Data) => {
+  try {
+    localStorage.setItem(profileKey(user), JSON.stringify(dataFrom(data)))
+  } catch {
+    // Bộ nhớ riêng tư hoặc đã đầy: state hiện tại vẫn được Zustand lưu như trước.
+  }
+}
+const loadProfile = (user: string): Data => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(profileKey(user)) ?? "null") as Partial<Data> | null
+    if (!saved || typeof saved.progress !== "object") return emptyData()
+    return { ...emptyData(), ...saved, settings: { ...DEFAULT_SETTINGS, ...saved.settings } }
+  } catch {
+    return emptyData()
+  }
+}
+
+/** Câu sai hoặc đoán quay lại sau 3 câu; câu trả lời chắc chắn thì hoàn thành. */
 const GAP_WRONG = 3
-const GAP_RIGHT = 5
 
 export const useStore = create<State>()(
   persist(
@@ -168,9 +195,8 @@ export const useStore = create<State>()(
         setSettings: (s) => set({ settings: { ...get().settings, ...s }, settingsAt: Date.now() }),
 
         startStudy: (kind, queue, { label, lesson }) => {
-          const { progress } = get()
           const need: Record<number, number> = {}
-          for (const n of queue) need[n] = kind === "wrong" ? 2 : initialNeed(n, !progress[n])
+          for (const n of queue) need[n] = 1
           set({ view: kind === "wrong" ? "wrong" : "study" })
           setStudy({
             kind,
@@ -200,11 +226,10 @@ export const useStore = create<State>()(
           const first = !st.graded.includes(n)
           const queue = [...st.queue]
           const need = { ...st.need }
-          let left = need[n] ?? 1
-          if (g === "wrong") left = Math.max(left, 2)
-          else if (g !== "guess") left--
+          // Giới hạn về 1 để phiên đang dở từ phiên bản cũ không tiếp tục lặp 2–3 lần.
+          const left = g === "wrong" || g === "guess" ? 1 : 0
           need[n] = left
-          if (left > 0) queue.splice(Math.min(st.pos + 1 + (g === "wrong" ? GAP_WRONG : GAP_RIGHT), queue.length), 0, n)
+          if (left > 0) queue.splice(Math.min(st.pos + 1 + GAP_WRONG, queue.length), 0, n)
           const today = dayKey(now)
           setStudy(
             {
@@ -290,7 +315,13 @@ export const useStore = create<State>()(
         },
         abandonExam: () => setExam(undefined),
 
-        setUser: (user) => set(user ? { user } : { ...emptyData(), user: undefined, view: "home", sync: "off" }),
+        setUser: (user) => {
+          const current = get()
+          if (current.user) saveProfile(current.user, current)
+          set(user
+            ? { ...loadProfile(user), user, view: "home", sync: "off", lastSynced: undefined }
+            : { ...emptyData(), user: undefined, view: "home", sync: "off", lastSynced: undefined })
+        },
 
         applySync: (d) =>
           set({
@@ -369,3 +400,16 @@ export function exportData() {
   const { progress, settings, history, log } = useStore.getState()
   return { app: "laivung", version: 2, exportedAt: new Date().toISOString(), progress, settings, history, log }
 }
+
+// Lưu riêng ngay sau mỗi thay đổi để cùng một trình duyệt có thể dùng nhiều username.
+useStore.subscribe((state, previous) => {
+  if (!state.user) return
+  if (
+    state.progress !== previous.progress || state.settings !== previous.settings || state.study !== previous.study ||
+    state.exam !== previous.exam || state.history !== previous.history || state.log !== previous.log ||
+    state.resetAt !== previous.resetAt
+  ) saveProfile(state.user, state)
+})
+
+const initialState = useStore.getState()
+if (initialState.user) saveProfile(initialState.user, initialState)

@@ -15,7 +15,7 @@ export function SettingsSheet() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent className="overflow-y-auto">
+      <SheetContent className="w-[min(92vw,24rem)] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
         <SheetHeader>
           <SheetTitle>Cài đặt học</SheetTitle>
           <SheetDescription>Đồng bộ theo tên đăng nhập trên mọi thiết bị.</SheetDescription>

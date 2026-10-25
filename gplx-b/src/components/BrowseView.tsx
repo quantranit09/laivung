@@ -46,8 +46,8 @@ export function BrowseView() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-2 sm:grid-cols-[1fr_200px_170px]">
-        <label className="relative">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-[1fr_200px_170px]">
+        <label className="relative col-span-2 md:col-span-1">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={text}
@@ -96,7 +96,7 @@ export function BrowseView() {
       </div>
 
       <Card>
-        <CardContent className="grid grid-cols-[repeat(auto-fill,minmax(2.6rem,1fr))] gap-1.5">
+        <CardContent className="grid grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] gap-1.5">
           {list.map((q) => (
             <button
               key={q.n}

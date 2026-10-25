@@ -177,7 +177,7 @@ function StudySetup() {
                   </AccordionTrigger>
                   <AccordionContent className="space-y-3 px-2">
                     <ChapterActions lessons={g.lessons} onLesson={plan.startLesson} />
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3">
                       {g.lessons.map((l, i) => (
                         <LessonTile key={l.id} lesson={l} status={st[i]} isNext={plan.next?.id === l.id} onStart={() => plan.startLesson(l)} />
                       ))}
@@ -391,16 +391,16 @@ function Runner() {
     return () => window.removeEventListener("keydown", onKey)
   })
 
-  const unique = Object.keys(study.need).length
-  const done = Object.values(study.need).filter((x) => x <= 0).length
+  const total = Object.keys(study.need).length
+  const done = Object.values(study.need).filter((left) => left === 0).length
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="text-sm font-semibold text-muted-foreground">{study.label}</div>
       <div className="flex items-center gap-3">
-        <Progress value={(done / unique) * 100} className="h-2 flex-1" />
+        <Progress value={(done / total) * 100} className="h-2 flex-1" />
         <span className="text-sm text-muted-foreground tabular-nums">
-          {done}/{unique} câu
+          {done}/{total} câu hoàn thành
         </span>
         <Button variant="ghost" size="sm" onClick={endStudy}>
           Dừng
@@ -432,7 +432,7 @@ function Runner() {
                     <Badge variant="outline">Ôn tập</Badge>
                   ) : (
                     <Badge className="border-transparent bg-warning/20 text-warning-foreground dark:text-warning">
-                      Nhắc lại · cần đúng thêm {Math.max(1, study.need[n])} lần
+                      Ôn lại câu chưa chắc
                     </Badge>
                   )
                 }
@@ -465,7 +465,7 @@ function Runner() {
           </span>
         </p>
       ) : (
-        <div className="sticky bottom-20 z-10 sm:bottom-4">
+        <div className="sticky bottom-20 z-10 md:bottom-4">
           {correct ? (
             <div className="grid gap-2 rounded-xl border bg-card/95 p-2 shadow-lg backdrop-blur sm:grid-cols-[1fr_auto]">
               <Button
@@ -524,7 +524,7 @@ function Summary() {
           <Trophy className="size-7 text-primary" />
         </div>
         <CardTitle className="text-2xl">{thisLesson ? `Xong ${lessonTitle(thisLesson)}!` : "Xong phiên!"}</CardTitle>
-        <CardDescription>Mọi câu trong phiên đều đã được nhớ ra đúng đủ số lần.</CardDescription>
+        <CardDescription>Mọi câu trong phiên đã được trả lời chắc chắn.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid grid-cols-3 gap-3">
@@ -574,7 +574,7 @@ export function Stat({ label, value, tone }: { label: string; value: React.React
 function HowItWorks() {
   const items = [
     ["Thử trước, xem sau", "Tự trả lời trước khi xem đáp án — kể cả câu mới. Đoán sai rồi được sửa vẫn nhớ tốt hơn chỉ đọc."],
-    ["Nhắc lại tới khi thuộc", "Trong phiên, câu mới phải nhớ ra đúng 2 lần (điểm liệt 3 lần), cách nhau vài câu."],
+    ["Chỉ nhắc lại khi cần", "Câu trả lời sai hoặc chọn “Mình đoán” sẽ quay lại sau vài câu; trả lời đúng chắc chắn là hoàn thành."],
     ["Lịch ôn FSRS", "Thuật toán của Anki dự đoán lúc bạn sắp quên từng câu để hẹn ôn đúng lúc — ít lần ôn mà vẫn nhớ."],
     ["Thành thật khi đoán", "Đoán trúng thì bấm “Mình đoán”: câu sẽ được ôn sớm hơn thay vì bị coi là đã thuộc."],
   ]

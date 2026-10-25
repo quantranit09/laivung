@@ -63,6 +63,11 @@ const NAV: { id: View; label: string; icon: React.ComponentType<{ className?: st
 
 // Trình mô phỏng 3D nặng (three.js) — chỉ tải khi mở.
 const SimView = lazy(() => import("@/components/sim/SimView"))
+const VIEWS = new Set<View>(NAV.map((n) => n.id))
+const viewFromUrl = () => {
+  const value = window.location.hash.slice(1) as View
+  return VIEWS.has(value) ? value : undefined
+}
 
 export default function App() {
   const user = useStore((s) => s.user)
@@ -84,6 +89,35 @@ function Shell() {
   const exam = useStore((s) => s.exam)
   const st = useMemo(() => stats(progress), [progress])
 
+  useEffect(() => {
+    const initial = viewFromUrl()
+    if (initial && initial !== useStore.getState().view) useStore.setState({ view: initial })
+    else if (!initial) history.replaceState(null, "", `#${useStore.getState().view}`)
+
+    let fromHistory = false
+    const unsubscribe = useStore.subscribe((state, previous) => {
+      if (fromHistory || state.view === previous.view) return
+      history.pushState(null, "", `#${state.view}`)
+    })
+    const onPopState = () => {
+      const next = viewFromUrl() ?? "home"
+      const state = useStore.getState()
+      if (state.exam && next !== "exam") {
+        toast.warning("Đang trong giờ thi — hãy nộp bài hoặc huỷ bài trước.")
+        history.pushState(null, "", "#exam")
+        return
+      }
+      fromHistory = true
+      useStore.setState({ view: next })
+      fromHistory = false
+    }
+    window.addEventListener("popstate", onPopState)
+    return () => {
+      unsubscribe()
+      window.removeEventListener("popstate", onPopState)
+    }
+  }, [])
+
   // Đang thi thì khoá điều hướng sang mục khác để không lỡ tay rời phòng thi.
   const go = (v: View) => {
     if (exam && v !== "exam") {
@@ -96,13 +130,13 @@ function Shell() {
   const badge = (id: View) => (id === "study" ? st.due : id === "wrong" ? st.wb : 0)
 
   return (
-    <div className="min-h-svh pb-24 sm:pb-10">
+    <div className="min-h-svh pb-24 md:pb-10">
       <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur-lg">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
+        <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-3 sm:px-4">
           <button onClick={() => go("home")} aria-label="Trang chủ">
-            <Logo />
+            <Logo className="[&>div]:hidden min-[350px]:[&>div]:block" />
           </button>
-          <nav className="ml-2 hidden flex-1 items-center gap-1 sm:flex lg:ml-4">
+          <nav className="ml-1 hidden flex-1 items-center gap-1 md:flex lg:ml-4">
             {NAV.map((n) => (
               <button
                 key={n.id}
@@ -110,7 +144,7 @@ function Shell() {
                 title={n.label}
                 aria-label={n.label}
                 className={cn(
-                  "relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap text-muted-foreground transition hover:bg-accent hover:text-foreground",
+                  "relative flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium whitespace-nowrap text-muted-foreground transition hover:bg-accent hover:text-foreground lg:px-3",
                   view === n.id && "bg-accent text-foreground",
                 )}
               >
@@ -139,7 +173,12 @@ function Shell() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      <main
+        className={cn(
+          "mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-6",
+          view !== "sim" && "[--card-gap:1rem] [--card-pad:1rem] sm:[--card-gap:1.5rem] sm:[--card-pad:1.5rem]",
+        )}
+      >
         {view === "home" && <Dashboard />}
         {view === "study" && <StudyView kind="study" />}
         {view === "wrong" && <StudyView kind="wrong" />}
@@ -152,13 +191,13 @@ function Shell() {
         )}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-lg sm:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_18px_rgba(0,0,0,0.06)] backdrop-blur-lg md:hidden">
         {NAV.map((n) => (
           <button
             key={n.id}
             onClick={() => go(n.id)}
             className={cn(
-              "relative flex flex-col items-center gap-0.5 py-2.5 text-[0.68rem] font-medium text-muted-foreground",
+              "relative flex min-w-0 flex-col items-center gap-0.5 py-2.5 text-[0.6rem] font-medium whitespace-nowrap text-muted-foreground min-[360px]:text-[0.65rem]",
               view === n.id && "text-primary",
             )}
           >

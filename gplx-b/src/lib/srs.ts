@@ -2,10 +2,9 @@
  * Lịch ôn dựa trên FSRS (Free Spaced Repetition Scheduler) — thuật toán dùng trong Anki,
  * dự đoán xác suất còn nhớ từng câu và hẹn ôn đúng lúc sắp quên.
  *
- * Kết hợp với "successive relearning" (Rawson & Dunlosky): trong một buổi, câu mới phải
- * được nhớ ra đúng nhiều lần (câu điểm liệt 3 lần) mới được thả; qua các ngày FSRS lo
- * phần giãn cách. Chỉ lần làm ĐẦU TIÊN của mỗi câu trong buổi mới được chấm vào FSRS —
- * đó mới là phép thử trí nhớ thật, các lần sau là luyện cho thuộc.
+ * Trong một buổi, câu sai hoặc người học tự nhận là đoán sẽ quay lại sau vài câu;
+ * qua các ngày FSRS lo phần giãn cách. Chỉ lần làm ĐẦU TIÊN của mỗi câu trong buổi
+ * được chấm vào FSRS — đó mới là phép thử trí nhớ thật.
  */
 import { createEmptyCard, fsrs, generatorParameters, Rating, State, type Card, type Grade as FsrsGrade } from "ts-fsrs"
 import { BY_N, EXAM_FORMATS, QUESTIONS, type ExamFormat, type Question } from "./questions"

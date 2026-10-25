@@ -24,7 +24,7 @@ Dự án Supabase miễn phí tự tạm dừng sau 7 ngày không có truy cậ
 ## Phương pháp học
 
 - **Thử trước, xem sau** (retrieval practice + pretesting): luôn tự trả lời trước khi thấy đáp án, kể cả câu mới.
-- **Nhắc lại tới khi thuộc** (successive relearning): trong phiên, câu mới phải nhớ đúng 2 lần, câu điểm liệt 3 lần, cách nhau vài câu.
+- **Chỉ nhắc lại khi cần**: câu trả lời sai hoặc chọn "Mình đoán" sẽ quay lại sau vài câu; trả lời đúng chắc chắn là hoàn thành.
 - **Lịch ôn FSRS** (ts-fsrs): dự đoán lúc sắp quên từng câu; mục tiêu nhớ 92% cho câu thường, 97% cho câu điểm liệt. Chỉ lần làm đầu tiên trong phiên được chấm.
 - **Chấm tự động**: sai = Again, "Mình đoán" = Hard, đúng = Good, đúng nhanh ở câu ôn = Easy.
 - **Xáo đáp án khi học** (trừ câu kiểu "Cả hai ý trên"), **trộn chương**, **phiên ngắn** ~10–15 phút.

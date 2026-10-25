@@ -58,7 +58,7 @@ function Setup({ onOpen }: { onOpen: (r: ExamResult) => void }) {
             variant="outline"
             value={settings.format}
             onValueChange={(v) => v && setSettings({ format: v as ExamFormat })}
-            className="grid w-full grid-cols-2"
+            className="grid w-full grid-cols-1 sm:grid-cols-2"
           >
             {(Object.keys(EXAM_FORMATS) as ExamFormat[]).map((k) => (
               <ToggleGroupItem key={k} value={k} className="h-auto flex-col items-start gap-0.5 px-3 py-2.5 text-left">
@@ -180,7 +180,20 @@ function Runner({ onDone }: { onDone: (r: ExamResult) => void }) {
   const ss = String(left % 60).padStart(2, "0")
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
+    <>
+      <div className="sticky top-16 z-20 -mx-3 mb-3 flex items-center justify-between border-y bg-background/95 px-3 py-2 shadow-sm backdrop-blur md:-mx-4 md:px-4 lg:hidden">
+        <span
+          className={cn(
+            "flex items-center gap-1.5 text-lg font-bold tabular-nums",
+            left < 120 && "animate-pulse text-destructive",
+          )}
+        >
+          <Timer className="size-4" /> {mm}:{ss}
+        </span>
+        <span className="text-sm text-muted-foreground tabular-nums">{answeredCount}/{total} đã làm</span>
+        <Button size="sm" onClick={() => setConfirm(true)}>Nộp bài</Button>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
       <div className="space-y-4">
         <Card>
           <CardContent className="pt-1">
@@ -218,7 +231,7 @@ function Runner({ onDone }: { onDone: (r: ExamResult) => void }) {
       <div className="space-y-3 lg:sticky lg:top-20 lg:self-start">
         <Card className="gap-3 py-4">
           <CardContent className="space-y-4 px-4">
-            <div className="flex items-center justify-between">
+            <div className="hidden items-center justify-between lg:flex">
               <span
                 className={cn(
                   "flex items-center gap-2 text-2xl font-bold tabular-nums",
@@ -279,7 +292,8 @@ function Runner({ onDone }: { onDone: (r: ExamResult) => void }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </div>
+    </>
   )
 }
 

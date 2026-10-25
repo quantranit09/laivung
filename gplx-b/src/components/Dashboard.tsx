@@ -86,7 +86,7 @@ export function Dashboard() {
         </button>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[1.35fr_1fr]">
+      <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr] lg:gap-5 lg:grid-cols-[1.35fr_1fr]">
         <Card className="overflow-hidden bg-gradient-to-br from-primary to-[oklch(0.38_0.18_268)] text-primary-foreground dark:text-white">
           <CardContent className="flex h-full flex-col justify-between gap-6">
             <div>
@@ -139,7 +139,7 @@ export function Dashboard() {
         <Tile icon={Flame} label="Chuỗi ngày học" value={`${streak} ngày`} tone="text-warning" />
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[1.35fr_1fr]">
+      <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr] lg:gap-5 lg:grid-cols-[1.35fr_1fr]">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Mức thuộc theo chương</CardTitle>

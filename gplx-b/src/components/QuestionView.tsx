@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Check, Lightbulb, Siren, X, ZoomIn } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
-import { CHAPTERS, imageUrl, type Question } from "@/lib/questions"
+import { CHAPTERS, imageUrl, QUESTIONS, type Question } from "@/lib/questions"
 import { cn } from "@/lib/utils"
 
 export function CriticalBadge({ className }: { className?: string }) {
@@ -16,7 +16,7 @@ export function CriticalBadge({ className }: { className?: string }) {
 export function QuestionMeta({ q, extra }: { q: Question; extra?: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      <span className="font-semibold tabular-nums">Câu {q.n}</span>
+      <span className="font-semibold tabular-nums">Câu {q.n}/{QUESTIONS.length}</span>
       <Badge variant="secondary">{CHAPTERS[q.c - 1].short}</Badge>
       {q.k && <CriticalBadge />}
       {extra}
