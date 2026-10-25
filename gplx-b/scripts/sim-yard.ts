@@ -1,25 +1,29 @@
 // Kiểm thử mô phỏng: bộ lái tự động chạy trọn 11 bài (BAD=1: cố tình mắc lỗi để kiểm tra trừ điểm).
 // Chạy trọn 11 bài sa hình bằng bộ lái tự động với bước thời gian cố định.
-import { Car } from "../src/sim/car.ts"
+import { Car, SEDAN, VF6 } from "../src/sim/car.ts"
 import { YardExam, Y, GARAGE_BAY, PARALLEL_BAY } from "../src/sim/yard.ts"
 import { Pilot, line, arc, type Leg } from "../src/sim/pilot.ts"
 import { v, dir, add, mul, len, sub, shapeMargin } from "../src/sim/geom.ts"
 
 const sc = new YardExam()
-const car = new Car()
+const car = new Car(process.env.CAR === "sedan" ? SEDAN : VF6)
 car.reset(sc.start.pos, sc.start.heading)
 car.seatbelt = !process.env.BAD
 car.handbrake = false
+car.engine = true
 car.signal = "left"
 const front = () => car.points().frontCenter
 const cat = (...ps: { x: number; z: number }[][]) => ps.flat()
-const th = Math.acos(1 - 4.9 / 8)
-const Z0 = 68.8 - 8 * Math.sin(th)
+const PR = 4.5 // bán kính hai cung lùi ghép ngang (≥ bán kính quay tối thiểu ~4,2 m)
+const LAT = 4.6 // dịch ngang từ làn vào ô (bộ lái hơi lố khoảng 0,4 m)
+const th = Math.acos(1 - LAT / (2 * PR))
+const ZE = 69 // trục sau khi đã nằm trong ô
+const Z0 = ZE - 2 * PR * Math.sin(th)
 const legs: Leg[] = [
   { path: line(v(0, -9.5), v(0, 30)), way: 1, speed: 4, stopWhen: () => Y.crosswalkStop - front().z, hold: 1 },
   { path: line(v(0, 10), v(0, 60)), way: 1, speed: 4, stopWhen: () => Y.hill.stop - front().z, hold: 2 },
   {
-    path: cat(line(v(0, 40), v(0, 128), v(0.8, 131), v(0.8, 133.8)), arc(v(0.8, 133.8), v(0, 1), -1, Math.PI / 2, 4.2), line(v(-3.4, 138), v(-9.8, 138)), arc(v(-9.8, 138), v(-1, 0), 1, Math.PI / 2, 4.2), line(v(-14, 142.2), v(-14, 158)), arc(v(-14, 158), v(0, 1), -1, Math.PI / 2, 6), line(v(-20, 164), v(-70, 164))),
+    path: cat(line(v(0, 40), v(0, 128), v(0.8, 131), v(0.8, 133.8)), arc(v(0.8, 133.8), v(0, 1), -1, Math.PI / 2, 4.3), line(v(-3.5, 138.1), v(-9.7, 138.1)), arc(v(-9.7, 138.1), v(-1, 0), 1, Math.PI / 2, 4.3), line(v(-14, 142.2), v(-14, 158)), arc(v(-14, 158), v(0, 1), -1, Math.PI / 2, 6), line(v(-20, 164), v(-70, 164))),
     way: 1,
     speed: 3,
     stopWhen: () => front().x - Y.lightStop,
@@ -32,8 +36,8 @@ const legs: Leg[] = [
   },
   { path: cat(arc(v(-123, 107), v(0, 1), 1, Math.PI / 2, 5), line(v(-118, 112), v(-113.4, 112))), way: -1, speed: 1.2, hold: 1.5 },
   { path: cat(line(v(-113.4, 112), v(-118, 112)), arc(v(-118, 112), v(-1, 0), -1, Math.PI / 2, 5), line(v(-123, 107), v(-124, 95), v(-121.5, 80), v(-121.5, Z0))), way: 1, speed: 2.5 },
-  { path: cat(arc(v(-121.5, Z0), v(0, 1), 1, th, 4), arc(v(-121.5 + 4 * (1 - Math.cos(th)), Z0 + 4 * Math.sin(th)), v(Math.sin(th), Math.cos(th)), -1, th, 4), line(v(-116.6, 68.8), v(-116.6, 70))), way: -1, speed: 0.8, hold: 1.5 },
-  { path: cat(arc(v(-116.6, Z0 + 8 * Math.sin(th)), v(0, -1), 1, th, 4), arc(v(-116.6 - 4 * (1 - Math.cos(th)), Z0 + 8 * Math.sin(th) - 4 * Math.sin(th)), v(-Math.sin(th), -Math.cos(th)), -1, th, 4), line(v(-121.5, Z0), v(-124, 52), v(-124, 30))), way: 1, speed: 3, stopWhen: () => front().z - Y.railStop, hold: 1 },
+  { path: cat(arc(v(-121.5, Z0), v(0, 1), 1, th, PR), arc(v(-121.5 + PR * (1 - Math.cos(th)), Z0 + PR * Math.sin(th)), v(Math.sin(th), Math.cos(th)), -1, th, PR), line(v(-121.5 + LAT, ZE), v(-121.5 + LAT, ZE + 1))), way: -1, speed: 0.8, hold: 1.5 },
+  { path: cat(arc(v(-121.5 + LAT, ZE + 1), v(0, -1), 1, th, PR), arc(v(-121.5 + LAT - PR * (1 - Math.cos(th)), ZE + 1 - PR * Math.sin(th)), v(-Math.sin(th), -Math.cos(th)), -1, th, PR), line(v(-121.5, Z0), v(-124, 52), v(-124, 30))), way: 1, speed: 3, stopWhen: () => front().z - Y.railStop, hold: 1 },
   { path: line(v(-124, 47), v(-124, 2)), way: 1, speed: process.env.BAD ? 5 : 8 },
   { path: cat(line(v(-124, 2), v(-124, -24)), arc(v(-124, -24), v(0, -1), -1, Math.PI / 2, 6), line(v(-118, -30), v(-10, -30))), way: 1, speed: 4 },
 ]
@@ -71,6 +75,10 @@ for (let step = 0; step < 60 * 60 * 20; step++) {
   sc.update(dt, car, c)
   if ((sc.ex === 6 || sc.ex === 7) && (pilot.i === 4 || pilot.i === 6) && pilot.holdLeft > 0 && pilot.holdLeft < 0.02) {
     const bay = sc.ex === 6 ? GARAGE_BAY : PARALLEL_BAY
+  }
+  if (process.env.DEBUG && (pilot.i === 4 || pilot.i === 6) && pilot.holdLeft > 0 && pilot.holdLeft < 0.02) {
+    const bay = pilot.i === 4 ? GARAGE_BAY : PARALLEL_BAY
+    console.log("bay fit", pilot.i, car.points().corners.map((p) => shapeMargin(bay, p).toFixed(2)).join(","), "heading", ((car.heading * 180) / Math.PI).toFixed(1), "pos", car.pos.x.toFixed(2), car.pos.z.toFixed(2))
   }
   if (sc.status === "passed" || sc.status === "failed") break
   if (pilot.done) break

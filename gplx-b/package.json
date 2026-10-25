@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "check:sim": "tsx scripts/sim-yard.ts && BAD=1 tsx scripts/sim-yard.ts && tsx scripts/sim-city.ts"
+    "check:sim": "tsx scripts/sim-yard.ts && CAR=sedan tsx scripts/sim-yard.ts && BAD=1 tsx scripts/sim-yard.ts && tsx scripts/sim-city.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.7",

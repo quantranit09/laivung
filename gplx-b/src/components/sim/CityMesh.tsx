@@ -4,7 +4,7 @@ import * as THREE from "three"
 import { CROSSWALKS, GRID, HALF, LIGHT_NODE, NODES, nodePos, lightFor, type CityDrive } from "@/sim/city"
 import { add, headingOf, leftOf, mul, norm, sub, v, type V2 } from "@/sim/geom"
 import { crossLine, polyGeometry, stripsGeometry, zebra } from "@/sim/meshes"
-import { Ground, Sign, TrafficLight } from "./YardMesh"
+import { Ground, Sign, TrafficLight, useAsphalt } from "./YardMesh"
 
 const flat = () => 0
 const BOX = HALF + 0.5
@@ -80,14 +80,14 @@ export function CityMesh({ city }: { city: React.RefObject<CityDrive> }) {
     return out
   }, [])
 
-  const asphalt = useMemo(() => new THREE.MeshStandardMaterial({ color: "#4a4e54", roughness: 0.95, side: THREE.DoubleSide }), [])
+  const asphalt = useAsphalt()
   const time = () => city.current?.clock ?? 0
 
   return (
     <group>
-      <Ground color="#8aa070" />
+      <Ground />
       {geo.roadParts.map((g, i) => (
-        <mesh key={i} geometry={g} material={asphalt} />
+        <mesh key={i} geometry={g} material={asphalt} receiveShadow />
       ))}
       <mesh geometry={geo.white}>
         <meshStandardMaterial color="#f8fafc" side={THREE.DoubleSide} />

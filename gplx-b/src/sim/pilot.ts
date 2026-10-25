@@ -2,7 +2,7 @@
  * Bộ lái bám đường (pure pursuit) dùng cho kiểm thử tự động: chứng minh sân lái được
  * với bán kính quay thật của xe và kiểm tra luật chấm điểm.
  */
-import { CAR, type Car, type Controls } from "./car"
+import type { Car, Controls } from "./car"
 import { add, clamp, dir, dot, len, mul, norm, sub, wrapAngle, type V2 } from "./geom"
 
 export interface Leg {
@@ -69,7 +69,7 @@ export class Pilot {
       }
     const to = sub(target, ref)
     const alpha = wrapAngle(Math.atan2(to.x, to.z) - Math.atan2(fwd.x, fwd.z))
-    let steer = Math.atan((2 * CAR.wheelbase * Math.sin(alpha)) / Math.max(1, len(to)))
+    let steer = Math.atan((2 * car.spec.wheelbase * Math.sin(alpha)) / Math.max(1, len(to)))
     if (leg.way === -1) steer = -steer
     const endDist = len(sub(pts[pts.length - 1], ref))
     const atEnd = best >= pts.length - 2 && (endDist < 0.6 || best === pts.length - 1)
@@ -77,7 +77,7 @@ export class Pilot {
     const mustStop = atEnd || (stopDist !== undefined && stopDist < 0.25)
     if (mustStop) {
       if (Math.abs(car.speed) < 0.03) this.holdLeft = leg.hold ?? 0.6
-      return { throttle: 0, brake: 1, steer: steer / CAR.maxSteer }
+      return { throttle: 0, brake: 1, steer: steer / car.spec.maxSteer }
     }
     // Chậm lại khi gần điểm dừng
     let v = leg.speed
@@ -89,7 +89,7 @@ export class Pilot {
     return {
       throttle: err > 0 ? clamp(err * 0.6, 0, 0.7) : 0,
       brake: err < -0.2 ? clamp(-err * 0.8, 0, 1) : 0,
-      steer: clamp(steer / CAR.maxSteer, -1, 1),
+      steer: clamp(steer / car.spec.maxSteer, -1, 1),
     }
   }
 }

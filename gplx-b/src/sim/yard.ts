@@ -131,6 +131,7 @@ export class YardExam implements Scenario {
     this.sc.deduct(5, "Bánh xe đè vào vạch giới hạn hình sát hạch"),
   )
   private rpmHigh = false
+  private engineWasOn = true
   private exStart = 0
   private exOver = 0
   /** Trạng thái riêng của bài đang làm */
@@ -149,9 +150,10 @@ export class YardExam implements Scenario {
 
   heightAt = yardHeight
 
-  begin() {
+  begin(car: Car) {
     this.status = "running"
     this.time = 0
+    this.engineWasOn = car.engine
     this.sc.sounds.push("start")
     this.hazard.x = -100 + Math.random() * 45
     this.hazard.phase = "armed"
@@ -211,6 +213,8 @@ export class YardExam implements Scenario {
     const high = car.rpm > 4000
     if (high && !this.rpmHigh) this.sc.deduct(5, "Để tốc độ động cơ quá 4000 vòng/phút")
     this.rpmHigh = high
+    if (!car.engine && this.engineWasOn) this.sc.deduct(5, "Xe bị chết máy / tắt máy giữa chừng")
+    this.engineWasOn = car.engine
     // Thời gian mỗi bài có giới hạn 2 phút (bài 4, 6, 7, 8, 10): cứ quá 2 phút trừ 5 điểm.
     if ([3, 5, 6, 7, 9].includes(this.ex) && this.time - this.exStart > 120 * (this.exOver + 1)) {
       this.exOver++
@@ -473,6 +477,10 @@ export class YardExam implements Scenario {
     this.status = passed ? "passed" : "failed"
     this.alarm = false
     this.sc.sounds.push(passed ? "done" : "fatal")
+  }
+
+  progress() {
+    return { done: this.status === "passed" ? 11 : this.ex, total: 11 }
   }
 
   instruction(car: Car): Instruction {

@@ -38,6 +38,8 @@ export interface Scenario {
   begin(car: Car): void
   update(dt: number, car: Car, c: Controls): void
   instruction(car: Car): Instruction
+  /** Số bài/hiệu lệnh đã hoàn thành trên tổng */
+  progress(): { done: number; total: number }
   drainSounds(): Sound[]
 }
 

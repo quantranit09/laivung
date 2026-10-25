@@ -174,6 +174,7 @@ export class CityDrive implements Scenario {
   private stop = new StopDetector()
   private speeding = new Repeater(5, () => this.sc.deduct(5, "Lái xe quá tốc độ quy định (50 km/h)"))
   private rpmHigh = false
+  private engineWasOn = true
   private tasks: Task[] = []
   private task = 0
   private taskShownAt = 0
@@ -236,6 +237,7 @@ export class CityDrive implements Scenario {
   begin(car: Car) {
     this.status = "running"
     this.time = 0
+    this.engineWasOn = car.engine
     this.sc.sounds.push("start")
     this.ob.lastSignal = car.signal
   }
@@ -455,6 +457,8 @@ export class CityDrive implements Scenario {
     const high = car.rpm > 4000
     if (high && !this.rpmHigh) this.sc.deduct(5, "Để tốc độ động cơ quá 4000 vòng/phút")
     this.rpmHigh = high
+    if (!car.engine && this.engineWasOn) this.sc.deduct(5, "Xe bị chết máy / tắt máy giữa chừng")
+    this.engineWasOn = car.engine
 
     // Va chạm
     for (const n of this.npcs) {
@@ -630,6 +634,10 @@ export class CityDrive implements Scenario {
     this.status = passed ? "passed" : "failed"
     this.alarm = false
     this.sc.sounds.push(passed ? "done" : "fatal")
+  }
+
+  progress() {
+    return { done: Math.min(this.task, this.tasks.length), total: this.tasks.length }
   }
 
   instruction(car: Car): Instruction {

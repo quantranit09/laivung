@@ -32,6 +32,7 @@ const sc2 = new CityDrive()
 car.reset(sc2.start.pos, sc2.start.heading)
 car.seatbelt = true
 car.handbrake = false
+car.engine = true
 car.signal = "left"
 sc2.begin(car)
 const [a] = laneLine("0,1", "0,2", 1)
