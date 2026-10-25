@@ -97,18 +97,20 @@ function Shell() {
           <button onClick={() => go("home")} aria-label="Trang chủ">
             <Logo />
           </button>
-          <nav className="ml-4 hidden flex-1 items-center gap-1 sm:flex">
+          <nav className="ml-2 hidden flex-1 items-center gap-1 sm:flex lg:ml-4">
             {NAV.map((n) => (
               <button
                 key={n.id}
                 onClick={() => go(n.id)}
+                title={n.label}
+                aria-label={n.label}
                 className={cn(
-                  "relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-accent hover:text-foreground",
+                  "relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap text-muted-foreground transition hover:bg-accent hover:text-foreground",
                   view === n.id && "bg-accent text-foreground",
                 )}
               >
                 <n.icon className="size-4" />
-                {n.label}
+                <span className="hidden lg:inline">{n.label}</span>
                 {badge(n.id) > 0 && (
                   <span className="rounded-full bg-primary px-1.5 text-[0.65rem] leading-4 font-bold text-primary-foreground tabular-nums">
                     {badge(n.id)}

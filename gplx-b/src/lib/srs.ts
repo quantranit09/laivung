@@ -233,19 +233,6 @@ export function todayPlan(progress: Progress, focus: StudyFocus, newLeft: number
   return { due, fresh: newOnes }
 }
 
-/**
- * Một phiên ngắn (~10–15 phút): tối đa `size` câu khác nhau, trộn câu ôn và câu mới.
- * Phiên ngắn giữ sự tập trung; học nhiều phiên rải trong ngày tốt hơn một phiên dài.
- */
-export function buildSession(plan: { due: number[]; fresh: number[] }, size: number) {
-  const reviews = plan.due.slice(0, size)
-  // Câu mới phải nhớ đúng 2–3 lần trong phiên, nên mỗi câu mới chiếm chỗ 2 câu ôn.
-  const fresh = plan.fresh.slice(0, Math.floor(Math.max(0, size - reviews.length) / 2))
-  return interleave([reviews, fresh])
-}
-
-export const sessionMinutes = (due: number, fresh: number) => Math.max(1, Math.round((due * 12 + fresh * 30) / 60))
-
 export function buildWrongQueue(progress: Progress) {
   return shuffle(QUESTIONS.filter((q) => progress[q.n]?.wb).map((q) => q.n))
 }
@@ -334,4 +321,72 @@ export function migrateLeitner(old: Record<number, { level: number; due: number;
     }
   }
   return out
+}
+
+/**
+ * Lộ trình học: mỗi chương chia thành các bài ~15 câu liên tiếp theo số thứ tự.
+ * Câu MỚI học theo khối (từng bài, đúng thứ tự trong sách) để dễ nắm chủ đề;
+ * câu ÔN thì trộn mọi chương để luyện phân biệt — kết hợp ưu điểm của học khối và học xen kẽ.
+ */
+export interface Lesson {
+  id: string
+  /** 0 = nhóm câu điểm liệt, 1–6 = chương */
+  chapter: number
+  index: number
+  ns: number[]
+}
+
+const LESSON_SIZE = 15
+
+function chunk(ns: number[], chapter: number): Lesson[] {
+  const parts = Math.max(1, Math.round(ns.length / LESSON_SIZE))
+  const size = Math.ceil(ns.length / parts)
+  return Array.from({ length: parts }, (_, i) => ({
+    id: `${chapter}-${i + 1}`,
+    chapter,
+    index: i + 1,
+    ns: ns.slice(i * size, (i + 1) * size),
+  })).filter((l) => l.ns.length)
+}
+
+export const CRITICAL_LESSONS = chunk(QUESTIONS.filter((q) => q.k).map((q) => q.n), 0)
+export const CHAPTER_LESSONS: Record<number, Lesson[]> = Object.fromEntries(
+  [1, 2, 3, 4, 5, 6].map((c) => [c, chunk(QUESTIONS.filter((q) => q.c === c).map((q) => q.n), c)]),
+)
+/** Thứ tự gợi ý: 60 câu điểm liệt trước (sai là trượt), rồi lần lượt chương 1 → 6. */
+export const LESSON_PATH = [...CRITICAL_LESSONS, ...[1, 2, 3, 4, 5, 6].flatMap((c) => CHAPTER_LESSONS[c])]
+export const LESSON_BY_ID = new Map(LESSON_PATH.map((l) => [l.id, l]))
+
+export const lessonRange = (l: Lesson) =>
+  l.chapter === 0 ? `${l.ns.length} câu` : `Câu ${l.ns[0]}–${l.ns[l.ns.length - 1]}`
+export const lessonTitle = (l: Lesson) => (l.chapter === 0 ? `Điểm liệt · Bài ${l.index}` : `Chương ${l.chapter} · Bài ${l.index}`)
+
+export function lessonStatus(progress: Progress, l: Lesson, now = Date.now()) {
+  let seen = 0, mastered = 0, due = 0
+  for (const n of l.ns) {
+    const s = progress[n]
+    if (!s) continue
+    seen++
+    if (isMastered(s)) mastered++
+    if (isDue(s, now)) due++
+  }
+  return { total: l.ns.length, seen, mastered, due, done: seen === l.ns.length }
+}
+
+/** Bài kế tiếp trên lộ trình: bài đầu tiên còn câu chưa học. */
+export const nextLesson = (progress: Progress) => LESSON_PATH.find((l) => l.ns.some((n) => !progress[n]))
+
+/** Phiên của một bài: câu đến hạn trong bài trước, rồi câu mới đúng thứ tự trong sách. */
+export function buildLessonSession(progress: Progress, l: Lesson, now = Date.now()) {
+  const due = l.ns
+    .filter((n) => isDue(progress[n], now))
+    .sort((a, b) => retrievability(a, progress[a], now) - retrievability(b, progress[b], now))
+  const fresh = l.ns.filter((n) => !progress[n])
+  return [...due, ...fresh]
+}
+
+/** Phiên ôn tập: câu đến hạn, yếu nhất trước, xếp xen kẽ giữa các chương. */
+export function buildReviewSession(due: number[], size: number) {
+  const pick = due.slice(0, size)
+  return interleave([1, 2, 3, 4, 5, 6].map((c) => pick.filter((n) => BY_N.get(n)!.c === c)))
 }

@@ -5,8 +5,8 @@ import {
   BookOpenCheck,
   Brain,
   CalendarClock,
+  CircleCheck,
   CircleHelp,
-  Flame,
   NotebookPen,
   Pause,
   Siren,
@@ -17,23 +17,30 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Kbd } from "@/components/Kbd"
 import { QuestionMeta, QuestionView } from "@/components/QuestionView"
 import { BY_N, CHAPTERS } from "@/lib/questions"
 import {
   autoDailyNew,
-  buildSession,
+  buildLessonSession,
+  buildReviewSession,
   buildWrongQueue,
+  CHAPTER_LESSONS,
+  CRITICAL_LESSONS,
   daysToExam,
   isDue,
+  LESSON_BY_ID,
+  lessonRange,
+  lessonStatus,
+  lessonTitle,
   MASTERED_STABILITY,
   newLearnedToday,
-  sessionMinutes,
+  nextLesson,
   todayPlan,
   WB_CLEAR_STREAK,
   type Grade,
-  type StudyFocus,
+  type Lesson,
 } from "@/lib/srs"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/store"
@@ -49,93 +56,188 @@ export function StudyView({ kind }: { kind: "study" | "wrong" }) {
   return kind === "study" ? <StudySetup /> : <WrongSetup />
 }
 
-/** Kế hoạch hôm nay — dùng chung cho trang Học và Tổng quan. */
-export function useTodayPlan(focus: StudyFocus = "all") {
+/** Kế hoạch hôm nay và các phiên có thể bắt đầu — dùng chung cho trang Học, Tổng quan, tóm tắt phiên. */
+export function useStudyPlan() {
   const progress = useStore((s) => s.progress)
   const settings = useStore((s) => s.settings)
-  return useMemo(() => {
+  const startStudy = useStore((s) => s.startStudy)
+  const plan = useMemo(() => {
     const dailyNew = autoDailyNew(progress, settings.examDate, settings.dailyNew)
     const doneNew = newLearnedToday(progress)
-    const plan = todayPlan(progress, focus, dailyNew - doneNew)
-    const session = buildSession(plan, settings.sessionSize)
-    return { ...plan, dailyNew, doneNew, session, minutes: sessionMinutes(plan.due.length, plan.fresh.length) }
-  }, [progress, settings, focus])
+    const { due } = todayPlan(progress, "all", 0)
+    return { due, dailyNew, doneNew, review: buildReviewSession(due, settings.sessionSize), next: nextLesson(progress) }
+  }, [progress, settings])
+  const startReview = () => startStudy("study", plan.review, { label: "Ôn tập hỗn hợp" })
+  const startLesson = (l: Lesson) => {
+    const queue = buildLessonSession(progress, l)
+    // Bài đã học hết và chưa tới hạn: cho ôn lại cả bài (FSRS vẫn tính được lần ôn sớm).
+    startStudy("study", queue.length ? queue : l.ns, { label: lessonTitle(l), lesson: l.id })
+  }
+  return { ...plan, startReview, startLesson }
 }
 
 function StudySetup() {
-  const startStudy = useStore((s) => s.startStudy)
-  const examDate = useStore((s) => s.settings.examDate)
+  const progress = useStore((s) => s.progress)
   const other = useStore((s) => s.study)
-  const [focus, setFocus] = useState<StudyFocus>("all")
-  const plan = useTodayPlan(focus)
+  const examDate = useStore((s) => s.settings.examDate)
+  const plan = useStudyPlan()
   const days = daysToExam(examDate)
-  const sessionDue = plan.session.filter((n) => plan.due.includes(n)).length
-  const sessionNew = plan.session.length - sessionDue
+  const [open, setOpen] = useState(() => String(plan.next?.chapter ?? 0))
+  const reachedDaily = plan.doneNew >= plan.dailyNew
+  const groups = [
+    { key: "0", title: "60 câu điểm liệt", sub: "Ưu tiên học trước — sai 1 câu là trượt", lessons: CRITICAL_LESSONS },
+    ...CHAPTERS.map((c) => ({ key: String(c.id), title: `Chương ${c.id}. ${c.name}`, sub: "", lessons: CHAPTER_LESSONS[c.id] })),
+  ]
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Brain className="size-5 text-primary" /> Phiên học tiếp theo
-          </CardTitle>
-          <CardDescription>
-            Phiên ngắn ~{sessionMinutes(sessionDue, sessionNew)} phút. Học vài phiên rải trong ngày giúp nhớ tốt hơn một
-            phiên dài.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <Stat label="Câu ôn" value={sessionDue} tone="text-primary" />
-            <Stat label="Câu mới" value={sessionNew} tone="text-success" />
-            <Stat label="Còn lại hôm nay" value={plan.due.length + plan.fresh.length} />
-          </div>
+    <div className="mx-auto max-w-3xl space-y-5">
+      {other && (
+        <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+          Bạn đang có một buổi ôn Sổ câu sai dở dang — bắt đầu phiên mới sẽ thay thế nó.
+        </p>
+      )}
 
-          {other && (
-            <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
-              Bạn đang có một buổi ôn Sổ câu sai dở dang — bắt đầu phiên mới sẽ thay thế nó.
-            </p>
-          )}
-
-          <Button
-            size="lg"
-            className="h-12 w-full text-base"
-            disabled={!plan.session.length}
-            onClick={() => startStudy("study", focus, plan.session)}
-          >
-            {plan.session.length ? (
-              <>
-                Bắt đầu phiên <ArrowRight />
-              </>
-            ) : (
-              "Xong việc hôm nay — mai quay lại nhé"
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card className="gap-4">
+          <CardHeader>
+            <CardDescription className="flex items-center gap-1.5">
+              <Brain className="size-4 text-primary" /> Học bài tiếp theo
+            </CardDescription>
+            <CardTitle className="text-lg">{plan.next ? lessonTitle(plan.next) : "Đã học hết 600 câu 🎉"}</CardTitle>
+            {plan.next && (
+              <p className="text-sm text-muted-foreground">
+                {plan.next.chapter ? CHAPTERS[plan.next.chapter - 1].name : "Câu điểm liệt"} · {lessonRange(plan.next)}
+              </p>
             )}
-          </Button>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4 text-sm">
-            <span className="text-muted-foreground">
-              Câu mới hôm nay: <b className="text-foreground tabular-nums">{plan.doneNew}</b>/{plan.dailyNew}
+          </CardHeader>
+          <CardContent className="mt-auto space-y-2">
+            <Button className="w-full" disabled={!plan.next} onClick={() => plan.next && plan.startLesson(plan.next)}>
+              Học bài này <ArrowRight />
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Câu mới hôm nay <b className="text-foreground tabular-nums">{plan.doneNew}</b>/{plan.dailyNew}
               {days !== undefined && days >= 0 && <> · còn {days} ngày tới kỳ thi</>}
-            </span>
-            <Select value={focus} onValueChange={(v) => setFocus(v as StudyFocus)}>
-              <SelectTrigger size="sm" className="w-auto min-w-44">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tất cả chương (khuyến nghị)</SelectItem>
-                <SelectItem value="critical">Chỉ câu điểm liệt</SelectItem>
-                {CHAPTERS.map((c) => (
-                  <SelectItem key={c.id} value={`ch${c.id}`}>
-                    Chương {c.id}: {c.short}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              {reachedDaily && " · đã đủ chỉ tiêu, học thêm sẽ làm tăng lượng ôn ngày mai"}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="gap-4">
+          <CardHeader>
+            <CardDescription className="flex items-center gap-1.5">
+              <CalendarClock className="size-4 text-primary" /> Ôn tập đến hạn
+            </CardDescription>
+            <CardTitle className="text-lg">{plan.due.length ? `${plan.due.length} câu cần ôn` : "Không có câu đến hạn"}</CardTitle>
+            <p className="text-sm text-muted-foreground">Trộn mọi chương để luyện phân biệt các câu dễ nhầm.</p>
+          </CardHeader>
+          <CardContent className="mt-auto">
+            <Button variant="secondary" className="w-full" disabled={!plan.review.length} onClick={plan.startReview}>
+              {plan.review.length ? `Ôn ${plan.review.length} câu` : "Đã ôn xong hôm nay"}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="gap-2 py-4">
+        <CardHeader className="px-4">
+          <CardTitle className="text-base">Lộ trình học</CardTitle>
+          <CardDescription>Mỗi bài ~15 câu liên tiếp theo thứ tự trong bộ đề. Bấm vào bài bất kỳ để học hoặc ôn lại.</CardDescription>
+        </CardHeader>
+        <CardContent className="px-2 sm:px-4">
+          <Accordion type="single" collapsible value={open} onValueChange={setOpen}>
+            {groups.map((g) => {
+              const st = g.lessons.map((l) => lessonStatus(progress, l))
+              const total = st.reduce((a, x) => a + x.total, 0)
+              const seen = st.reduce((a, x) => a + x.seen, 0)
+              const mastered = st.reduce((a, x) => a + x.mastered, 0)
+              const due = st.reduce((a, x) => a + x.due, 0)
+              return (
+                <AccordionItem key={g.key} value={g.key}>
+                  <AccordionTrigger className="px-2 hover:no-underline">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <span
+                        className={cn(
+                          "flex size-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold",
+                          g.key === "0" ? "bg-destructive/12 text-destructive" : "bg-primary/10 text-primary",
+                        )}
+                      >
+                        {g.key === "0" ? <Siren className="size-4" /> : g.key}
+                      </span>
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="truncate font-medium">{g.title}</div>
+                        <Bar seen={seen / total} mastered={mastered / total} />
+                        <div className="text-xs font-normal text-muted-foreground">
+                          {seen}/{total} đã học · {mastered} đã thuộc{due > 0 && ` · ${due} đến hạn`}
+                          {g.sub && ` · ${g.sub}`}
+                        </div>
+                      </div>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-2">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {g.lessons.map((l, i) => (
+                        <LessonTile key={l.id} lesson={l} status={st[i]} isNext={plan.next?.id === l.id} onStart={() => plan.startLesson(l)} />
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              )
+            })}
+          </Accordion>
         </CardContent>
       </Card>
       <HowItWorks />
     </div>
+  )
+}
+
+function Bar({ seen, mastered }: { seen: number; mastered: number }) {
+  return (
+    <div className="relative h-1.5 overflow-hidden rounded-full bg-muted">
+      <div className="absolute inset-y-0 left-0 bg-primary/25" style={{ width: `${seen * 100}%` }} />
+      <div className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${mastered * 100}%` }} />
+    </div>
+  )
+}
+
+function LessonTile({
+  lesson,
+  status: st,
+  isNext,
+  onStart,
+}: {
+  lesson: Lesson
+  status: ReturnType<typeof lessonStatus>
+  isNext: boolean
+  onStart: () => void
+}) {
+  const allMastered = st.mastered === st.total
+  return (
+    <button
+      onClick={onStart}
+      className={cn(
+        "relative flex flex-col gap-1.5 rounded-xl border bg-card p-3 text-left transition hover:border-primary/50 hover:bg-accent/50",
+        isNext && "border-primary ring-2 ring-primary/20",
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold">Bài {lesson.index}</span>
+        {allMastered ? (
+          <CircleCheck className="size-4 text-success" />
+        ) : isNext ? (
+          <Badge className="h-5 px-1.5 text-[0.65rem]">Tiếp theo</Badge>
+        ) : st.due > 0 ? (
+          <Badge variant="outline" className="h-5 px-1.5 text-[0.65rem] tabular-nums">
+            {st.due} đến hạn
+          </Badge>
+        ) : null}
+      </div>
+      <span className="text-xs text-muted-foreground">{lessonRange(lesson)}</span>
+      <Bar seen={st.seen / st.total} mastered={st.mastered / st.total} />
+      <span className="text-[0.7rem] text-muted-foreground tabular-nums">
+        {st.seen === 0 ? "Chưa học" : allMastered ? "Đã thuộc" : st.done ? `Đã học · ${st.mastered}/${st.total} thuộc` : `Đang học ${st.seen}/${st.total}`}
+      </span>
+    </button>
   )
 }
 
@@ -167,7 +269,7 @@ function WrongSetup() {
             size="lg"
             className="w-full"
             disabled={!items.length}
-            onClick={() => startStudy("wrong", "all", buildWrongQueue(progress).slice(0, 30))}
+            onClick={() => startStudy("wrong", buildWrongQueue(progress).slice(0, 30), { label: "Sổ câu sai" })}
           >
             {items.length ? (
               <>
@@ -263,6 +365,7 @@ function Runner() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
+      <div className="text-sm font-semibold text-muted-foreground">{study.label}</div>
       <div className="flex items-center gap-3">
         <Progress value={(done / unique) * 100} className="h-2 flex-1" />
         <span className="text-sm text-muted-foreground tabular-nums">
@@ -370,14 +473,14 @@ function Summary() {
   const study = useStore((s) => s.study)!
   const progress = useStore((s) => s.progress)
   const endStudy = useStore((s) => s.endStudy)
-  const startStudy = useStore((s) => s.startStudy)
   const setView = useStore((s) => s.setView)
-  const plan = useTodayPlan()
+  const plan = useStudyPlan()
   const unique = study.graded.length
   const acc = unique ? Math.round((study.firstCorrect / unique) * 100) : 0
   const minutes = Math.max(1, Math.round((Date.now() - study.startedAt) / 60000))
   const tomorrow = Date.now() + 86_400_000
   const dueTomorrow = study.graded.filter((n) => isDue(progress[n], tomorrow)).length
+  const thisLesson = study.lesson ? LESSON_BY_ID.get(study.lesson) : undefined
 
   useEffect(() => {
     confetti({ particleCount: acc >= 80 ? 140 : 60, spread: 75, origin: { y: 0.6 } })
@@ -389,7 +492,7 @@ function Summary() {
         <div className="mx-auto mb-2 flex size-14 items-center justify-center rounded-2xl bg-primary/10">
           <Trophy className="size-7 text-primary" />
         </div>
-        <CardTitle className="text-2xl">Xong phiên!</CardTitle>
+        <CardTitle className="text-2xl">{thisLesson ? `Xong ${lessonTitle(thisLesson)}!` : "Xong phiên!"}</CardTitle>
         <CardDescription>Mọi câu trong phiên đều đã được nhớ ra đúng đủ số lần.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -399,21 +502,22 @@ function Summary() {
           <Stat label="Thời gian" value={`${minutes}′`} />
         </div>
         <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <CalendarClock className="size-4 text-primary" /> {dueTomorrow} câu trong phiên sẽ quay lại vào ngày mai, số
-          còn lại giãn xa hơn.
+          <CalendarClock className="size-4 shrink-0 text-primary" /> {dueTomorrow} câu trong phiên sẽ quay lại vào ngày
+          mai, số còn lại giãn xa hơn.
         </p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {plan.session.length > 0 && study.kind === "study" ? (
-            <Button onClick={() => startStudy("study", study.focus, plan.session)}>
-              <BookOpenCheck /> Phiên tiếp ({plan.session.length} câu)
+        <div className="grid gap-2">
+          {study.kind === "study" && plan.review.length > 0 && (
+            <Button onClick={plan.startReview}>
+              <CalendarClock /> Ôn {plan.review.length} câu đến hạn
             </Button>
-          ) : (
-            <Button variant="outline" disabled>
-              <Flame /> Xong việc hôm nay
+          )}
+          {study.kind === "study" && plan.next && (
+            <Button variant={plan.review.length ? "outline" : "default"} onClick={() => plan.startLesson(plan.next!)}>
+              <BookOpenCheck /> Học tiếp {lessonTitle(plan.next)}
             </Button>
           )}
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => {
               endStudy()
               setView("home")

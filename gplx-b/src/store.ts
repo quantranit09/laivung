@@ -9,7 +9,6 @@ import {
   schedule,
   type Grade,
   type Progress,
-  type StudyFocus,
 } from "@/lib/srs"
 import type { SyncData } from "@/lib/sync"
 
@@ -17,7 +16,10 @@ export type View = "home" | "study" | "exam" | "wrong" | "browse"
 
 export interface StudySession {
   kind: "study" | "wrong"
-  focus: StudyFocus
+  /** Bài trên lộ trình (nếu là phiên học bài), để gợi ý bài tiếp theo */
+  lesson?: string
+  /** Tiêu đề hiển thị, vd. "Chương 5 · Bài 3" hoặc "Ôn tập hỗn hợp" */
+  label: string
   queue: number[]
   pos: number
   /** Số lần còn phải nhớ ra đúng trong phiên, theo câu */
@@ -96,7 +98,7 @@ interface State extends Data {
   setSettingsOpen: (b: boolean) => void
   setView: (v: View) => void
   setSettings: (s: Partial<Settings>) => void
-  startStudy: (kind: StudySession["kind"], focus: StudyFocus, queue: number[]) => void
+  startStudy: (kind: StudySession["kind"], queue: number[], opts: { label: string; lesson?: string }) => void
   choose: (choice: number) => void
   advance: (g: Grade) => void
   endStudy: () => void
@@ -161,14 +163,15 @@ export const useStore = create<State>()(
         setView: (view) => set({ view }),
         setSettings: (s) => set({ settings: { ...get().settings, ...s }, settingsAt: Date.now() }),
 
-        startStudy: (kind, focus, queue) => {
+        startStudy: (kind, queue, { label, lesson }) => {
           const { progress } = get()
           const need: Record<number, number> = {}
           for (const n of queue) need[n] = kind === "wrong" ? 2 : initialNeed(n, !progress[n])
           set({ view: kind === "wrong" ? "wrong" : "study" })
           setStudy({
             kind,
-            focus,
+            label,
+            lesson,
             queue,
             pos: 0,
             need,

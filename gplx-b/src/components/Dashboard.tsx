@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { CHAPTERS, EXAM_FORMATS, QUESTIONS } from "@/lib/questions"
-import { chapterMastery, dayKey, daysToExam, passProbability, stats } from "@/lib/srs"
-import { useTodayPlan } from "@/components/StudyView"
+import { chapterMastery, dayKey, daysToExam, lessonRange, lessonTitle, passProbability, stats } from "@/lib/srs"
+import { useStudyPlan } from "@/components/StudyView"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/store"
 
@@ -30,10 +30,9 @@ export function Dashboard() {
   const study = useStore((s) => s.study)
   const exam = useStore((s) => s.exam)
   const setView = useStore((s) => s.setView)
-  const startStudy = useStore((s) => s.startStudy)
   const setSettingsOpen = useStore((s) => s.setSettingsOpen)
   const examDate = useStore((s) => s.settings.examDate)
-  const plan = useTodayPlan()
+  const plan = useStudyPlan()
   const days = daysToExam(examDate)
 
   const st = useMemo(() => stats(progress), [progress])
@@ -45,19 +44,27 @@ export function Dashboard() {
   const f = EXAM_FORMATS[format]
   const resume = exam ? "exam" : study ? (study.kind === "wrong" ? "wrong" : "study") : undefined
 
-  const sessionDue = plan.session.filter((n) => plan.due.includes(n)).length
-  const sessionNew = plan.session.length - sessionDue
   const finalStretch = days !== undefined && days <= 3
-  const next = plan.session.length && !finalStretch
-    ? {
-        title: !st.seen ? "Bắt đầu với 60 câu điểm liệt" : "Phiên học tiếp theo",
-        desc: [sessionDue && `${sessionDue} câu ôn`, sessionNew && `${sessionNew} câu mới`].filter(Boolean).join(" + ") +
-          ` · khoảng ${Math.max(1, Math.round((sessionDue * 12 + sessionNew * 30) / 60))} phút`,
-        go: () => startStudy("study", "all", plan.session),
-      }
-    : st.wb > 0
-      ? { title: `Xử lý ${st.wb} câu trong Sổ câu sai`, desc: "Biến lỗi sai thành câu chắc chắn.", go: () => setView("wrong") }
-      : { title: "Thi thử một đề", desc: finalStretch ? "Giai đoạn nước rút: thi thử và ôn câu sai." : "Hết việc hôm nay — kiểm tra độ sẵn sàng.", go: () => setView("exam") }
+  const lessonDesc = (l: NonNullable<typeof plan.next>) =>
+    `${l.chapter ? CHAPTERS[l.chapter - 1].name : "Câu điểm liệt"} · ${lessonRange(l)}`
+  const next =
+    finalStretch && st.wb > 0
+      ? { title: `Xử lý ${st.wb} câu trong Sổ câu sai`, desc: "Giai đoạn nước rút: dọn sạch lỗi sai trước.", go: () => setView("wrong") }
+      : finalStretch
+        ? { title: "Thi thử một đề", desc: "Giai đoạn nước rút: thi thử để quen áp lực thời gian.", go: () => setView("exam") }
+        : plan.review.length
+          ? {
+              title: `Ôn ${plan.review.length} câu đến hạn`,
+              desc: `Trộn các chương · khoảng ${Math.max(1, Math.round((plan.review.length * 12) / 60))} phút`,
+              go: plan.startReview,
+            }
+          : plan.next && plan.doneNew < plan.dailyNew
+            ? { title: `Học ${lessonTitle(plan.next)}`, desc: lessonDesc(plan.next), go: () => plan.startLesson(plan.next!) }
+            : st.wb > 0
+              ? { title: `Xử lý ${st.wb} câu trong Sổ câu sai`, desc: "Biến lỗi sai thành câu chắc chắn.", go: () => setView("wrong") }
+              : plan.next
+                ? { title: "Đã đủ chỉ tiêu hôm nay 🎉", desc: `Còn sức thì học thêm ${lessonTitle(plan.next)}.`, go: () => plan.startLesson(plan.next!) }
+                : { title: "Thi thử một đề", desc: "Đã học hết 600 câu — kiểm tra độ sẵn sàng.", go: () => setView("exam") }
 
   return (
     <div className="space-y-5">
@@ -110,6 +117,14 @@ export function Dashboard() {
                 onClick={() => setView("exam")}
               >
                 <ClipboardCheck /> Thi thử
+              </Button>
+              <Button
+                size="lg"
+                variant="ghost"
+                className="text-inherit hover:bg-white/15 hover:text-inherit"
+                onClick={() => setView("study")}
+              >
+                <Brain /> Lộ trình
               </Button>
             </div>
           </CardContent>
