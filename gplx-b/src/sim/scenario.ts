@@ -7,6 +7,8 @@ export interface Fault {
   text: string
   /** Lỗi bị đình chỉ sát hạch */
   fatal?: boolean
+  /** Bài sa hình đang làm khi mắc lỗi (0-based) — để luyện lại đúng bài đó */
+  ex?: number
 }
 
 export type ExamStatus = "ready" | "running" | "passed" | "failed"
@@ -51,8 +53,10 @@ export class Scorer {
   sounds: Sound[] = []
   fatal = false
   private now: () => number
-  constructor(now: () => number) {
+  private tag?: () => number
+  constructor(now: () => number, tag?: () => number) {
     this.now = now
+    this.tag = tag
   }
 
   get score() {
@@ -60,14 +64,14 @@ export class Scorer {
   }
 
   deduct(points: number, text: string) {
-    this.faults.push({ t: this.now(), points, text })
+    this.faults.push({ t: this.now(), points, text, ex: this.tag?.() })
     this.sounds.push("fault")
   }
 
   disqualify(text: string) {
     if (this.fatal) return
     this.fatal = true
-    this.faults.push({ t: this.now(), points: 0, text, fatal: true })
+    this.faults.push({ t: this.now(), points: 0, text, fatal: true, ex: this.tag?.() })
     this.sounds.push("fatal")
   }
 }

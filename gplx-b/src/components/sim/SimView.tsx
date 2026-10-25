@@ -12,7 +12,7 @@ import { CityDrive } from "@/sim/city"
 import { Input, KEY_HELP, type Command } from "@/sim/input"
 import { unlockAudio } from "@/sim/audio"
 import type { Fault, Instruction, Scenario } from "@/sim/scenario"
-import { YardExam } from "@/sim/yard"
+import { YardExam, type YardPractice } from "@/sim/yard"
 import { cn } from "@/lib/utils"
 import { Component, type ReactNode } from "react"
 import { CarModel } from "./CarModel"
@@ -33,6 +33,8 @@ type Mode = "yard" | "city"
 export default function SimView({ onExit }: { onExit: () => void }) {
   const [mode, setMode] = useState<Mode>()
   const [run, setRun] = useState(0)
+  /** Luyện lại một bài sa hình (thay vì thi lại từ đầu) */
+  const [practice, setPractice] = useState<YardPractice>()
   const [prefs, setPrefs] = useSimPrefs()
   if (!mode)
     return (
@@ -50,8 +52,19 @@ export default function SimView({ onExit }: { onExit: () => void }) {
       mode={mode}
       prefs={prefs}
       setPrefs={setPrefs}
-      onRestart={() => setRun((r) => r + 1)}
-      onMenu={() => setMode(undefined)}
+      practice={practice}
+      onRestart={() => {
+        setPractice(undefined)
+        setRun((r) => r + 1)
+      }}
+      onPractice={(p) => {
+        setPractice(p)
+        setRun((r) => r + 1)
+      }}
+      onMenu={() => {
+        setPractice(undefined)
+        setMode(undefined)
+      }}
     />
   )
 }
@@ -127,16 +140,20 @@ function Drive({
   mode,
   prefs,
   setPrefs,
+  practice,
   onRestart,
+  onPractice,
   onMenu,
 }: {
   mode: Mode
   prefs: ReturnType<typeof useSimPrefs>[0]
   setPrefs: ReturnType<typeof useSimPrefs>[1]
+  practice?: YardPractice
   onRestart: () => void
+  onPractice: (p: YardPractice) => void
   onMenu: () => void
 }) {
-  const scenario = useMemo<Scenario>(() => (mode === "yard" ? new YardExam() : new CityDrive()), [mode])
+  const scenario = useMemo<Scenario>(() => (mode === "yard" ? new YardExam(practice) : new CityDrive()), [mode, practice])
   const car = useMemo(() => {
     const c = new Car(CARS[prefs.car])
     c.reset(scenario.start.pos, scenario.start.heading)
@@ -347,7 +364,7 @@ function Drive({
         {instr && hud && (
           <div className="absolute top-[7.25rem] left-2 sm:top-[4.5rem] sm:left-3 short:top-16">
             {hud.status === "ready" ? (
-              <StartChecklist hud={hud} touch={touch} narrow={hud.gear === "R"} onBegin={() => cmd("begin")} />
+              <StartChecklist hud={hud} touch={touch} narrow={hud.gear === "R"} practice={practice} onBegin={() => cmd("begin")} />
             ) : (
               <InstructionPanel instr={instr} alarm={scenario.alarm} assist={prefs.assist} faults={faults} narrow={hud.gear === "R"} />
             )}
@@ -398,7 +415,19 @@ function Drive({
           </div>
         )}
 
-        {done && <Result passed={hud.status === "passed"} score={hud.score} faults={scenario.faults} time={hud.time} onRestart={onRestart} onMenu={onMenu} />}
+        {done && (
+          <Result
+            passed={hud.status === "passed"}
+            score={hud.score}
+            faults={scenario.faults}
+            time={hud.time}
+            yard={mode === "yard"}
+            practice={practice}
+            onRestart={onRestart}
+            onPractice={onPractice}
+            onMenu={onMenu}
+          />
+        )}
       </div>
     </Shell>
   )

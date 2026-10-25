@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef } from "react"
-import { Gauge, Power, RotateCcw, ShieldCheck, Timer, TriangleAlert, Trophy, XCircle, Zap } from "lucide-react"
+import { Gauge, Power, RotateCcw, ShieldCheck, Target, Timer, TriangleAlert, Trophy, XCircle, Zap } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import type { CityDrive } from "@/sim/city"
 import type { Shape } from "@/sim/geom"
 import { PASS_SCORE, type Fault, type Instruction } from "@/sim/scenario"
+import { EX_NAMES, weakExercises, type YardPractice } from "@/sim/yard"
 import { cn } from "@/lib/utils"
 import { tap } from "./tap"
 import { rearInset, type Hud } from "./World"
@@ -221,7 +222,29 @@ export function Minimap({ shapes, hud, city }: { shapes: Shape[]; hud?: Hud; cit
   return <canvas ref={ref} width={150} height={150} className={cn("hidden rounded-2xl p-1 sm:block short:hidden", glass)} />
 }
 
-export function Result({ passed, score, faults, time, onRestart, onMenu }: { passed: boolean; score: number; faults: Fault[]; time: number; onRestart: () => void; onMenu: () => void }) {
+export function Result({
+  passed,
+  score,
+  faults,
+  time,
+  yard,
+  practice,
+  onRestart,
+  onPractice,
+  onMenu,
+}: {
+  passed: boolean
+  score: number
+  faults: Fault[]
+  time: number
+  yard: boolean
+  practice?: YardPractice
+  onRestart: () => void
+  onPractice: (p: YardPractice) => void
+  onMenu: () => void
+}) {
+  const weak = yard ? weakExercises(faults) : []
+  const exLabel = (ex: number) => `Bài ${ex + 1} · ${EX_NAMES[ex]}`
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
       <Card className="max-h-[90%] w-full max-w-md overflow-y-auto">
@@ -230,6 +253,11 @@ export function Result({ passed, score, faults, time, onRestart, onMenu }: { pas
             {passed ? <Trophy className="size-7" /> : <XCircle className="size-7" />}
           </div>
           <CardTitle className="text-2xl">{passed ? "ĐẠT" : "KHÔNG ĐẠT"}</CardTitle>
+          {practice && (
+            <div className="text-sm font-medium">
+              {practice.only ? `Luyện riêng ${exLabel(practice.from)}` : `Thi tiếp từ bài ${practice.from + 1} đến hết`}
+            </div>
+          )}
           <CardDescription>
             {score} điểm · cần từ {PASS_SCORE} · thời gian {fmt(time)}
           </CardDescription>
@@ -241,16 +269,42 @@ export function Result({ passed, score, faults, time, onRestart, onMenu }: { pas
                 <li key={i} className="flex items-start gap-2 p-2">
                   {f.fatal ? <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" /> : <Badge variant="outline" className="shrink-0 tabular-nums">−{f.points}</Badge>}
                   <span className="flex-1">{f.text}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">{fmt(f.t)}</span>
+                  <span className="shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+                    {f.ex !== undefined && yard && <span className="block font-medium">Bài {f.ex + 1}</span>}
+                    {fmt(f.t)}
+                  </span>
                 </li>
               ))}
             </ul>
           ) : (
             <p className="text-center text-sm text-muted-foreground">Không mắc lỗi nào. Xuất sắc!</p>
           )}
+          {weak.length > 0 && (
+            <div className="space-y-2 rounded-lg bg-muted/60 p-3">
+              <div className="text-sm font-semibold">Luyện lại phần bị lỗi</div>
+              {weak.map((ex) => (
+                <div key={ex} className="space-y-1.5">
+                  <div className="text-sm">{exLabel(ex)}</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button size="sm" onClick={() => onPractice({ from: ex, only: true })}>
+                      <Target /> Luyện bài này
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => onPractice({ from: ex, only: false })}>
+                      Thi tiếp từ đây
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {practice && weak.length === 0 && (
+            <Button className="w-full" onClick={() => onPractice(practice)}>
+              <RotateCcw /> {practice.only ? "Làm lại bài này" : `Thi lại từ bài ${practice.from + 1}`}
+            </Button>
+          )}
           <div className="grid grid-cols-2 gap-2">
-            <Button onClick={onRestart}>
-              <RotateCcw /> Thi lại
+            <Button variant={weak.length || practice ? "outline" : "default"} onClick={onRestart}>
+              <RotateCcw /> {practice ? "Thi từ đầu" : "Thi lại"}
             </Button>
             <Button variant="outline" onClick={onMenu}>
               Chọn bài khác
@@ -263,7 +317,19 @@ export function Result({ passed, score, faults, time, onRestart, onMenu }: { pas
 }
 
 /** Các bước xuất phát như trên xe thật — tích dần khi làm đúng. */
-export function StartChecklist({ hud, touch, narrow, onBegin }: { hud: Hud; touch: boolean; narrow?: boolean; onBegin: () => void }) {
+export function StartChecklist({
+  hud,
+  touch,
+  narrow,
+  practice,
+  onBegin,
+}: {
+  hud: Hud
+  touch: boolean
+  narrow?: boolean
+  practice?: YardPractice
+  onBegin: () => void
+}) {
   // Cảm ứng: chỉ tên nút trên màn hình; bàn phím: kèm phím tắt
   const steps: [string, string, boolean][] = [
     [touch ? "Giữ bàn đạp PHANH" : "Đạp giữ phanh", "S", hud.brake > 0.3 || hud.engine],
@@ -290,9 +356,16 @@ export function StartChecklist({ hud, touch, narrow, onBegin }: { hud: Hud; touc
           </li>
         ))}
       </ol>
-      <p className="mt-2 text-[0.7rem] text-white/60 short:hidden">
-        Sau khi nhận lệnh: bật xi nhan trái{touch ? "" : " (Q)"}, nhả phanh cho xe tự bò qua vạch trong 20 giây.
-      </p>
+      {practice && practice.from > 0 ? (
+        <p className="mt-2 text-[0.7rem] text-sky-200 short:hidden">
+          {practice.only ? "Luyện riêng" : "Thi tiếp từ"} bài {practice.from + 1} · {EX_NAMES[practice.from]}
+          {practice.only ? " — xong bài là chấm điểm." : " đến hết."}
+        </p>
+      ) : (
+        <p className="mt-2 text-[0.7rem] text-white/60 short:hidden">
+          Sau khi nhận lệnh: bật xi nhan trái{touch ? "" : " (Q)"}, nhả phanh cho xe tự bò qua vạch trong 20 giây.
+        </p>
+      )}
       <button
         {...tap(onBegin)}
         className={cn("pointer-events-auto mt-2.5 w-full rounded-xl bg-sky-500 py-2.5 text-sm font-bold short:mt-1.5 short:py-1.5 text-white transition active:bg-sky-400", !touch && "sm:hidden")}

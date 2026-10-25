@@ -4,7 +4,7 @@
  */
 import type { Car } from "./car"
 import { len, rect, roundedPath, sub, unionMargin, shapeMargin, v, type Poly, type Shape, type V2 } from "./geom"
-import { PASS_SCORE, Repeater, Scorer, StopDetector, type ExamStatus, type Instruction, type Scenario, type Sound } from "./scenario"
+import { PASS_SCORE, Repeater, Scorer, StopDetector, type ExamStatus, type Fault, type Instruction, type Scenario, type Sound } from "./scenario"
 
 // ---- Bố cục sân (mét). Đi theo chiều kim đồng hồ: Bắc → Đông → Nam → Tây. ----
 export const Y = {
@@ -95,7 +95,7 @@ export const YARD_MARKS = {
   speedZone: { z0: Y.speed.z0, zMid: Y.speed.zMid, z1: Y.speed.z1 },
 }
 
-const EX_NAMES = [
+export const EX_NAMES = [
   "Xuất phát",
   "Dừng xe nhường đường cho người đi bộ",
   "Dừng và khởi hành xe ngang dốc",
@@ -111,10 +111,52 @@ const EX_NAMES = [
 
 type Light = "red" | "yellow" | "green"
 
+/**
+ * Vị trí đặt xe (trục sau) ngay trước từng bài, để luyện lại riêng một bài.
+ * Hướng: 0 = đi về +z (Bắc), π = về -z, -π/2 = về -x, π/2 = về +x.
+ */
+const EX_START: { pos: V2; heading: number }[] = [
+  { pos: v(0, -9.5), heading: 0 },
+  { pos: v(0, 4), heading: 0 },
+  { pos: v(0, 22), heading: 0 },
+  { pos: v(0, 80), heading: 0 },
+  { pos: v(-34, 164), heading: -Math.PI / 2 },
+  { pos: v(-68, 164), heading: -Math.PI / 2 },
+  { pos: v(-124, 140), heading: Math.PI },
+  { pos: v(-124, 95), heading: Math.PI },
+  { pos: v(-124, 60), heading: Math.PI },
+  { pos: v(-124, 36), heading: Math.PI },
+  { pos: v(-116, -30), heading: Math.PI / 2 },
+]
+/** Góc rẽ thứ i nằm ngay trước bài này — xuất phát từ bài sau đó thì coi như đã qua. */
+const CORNER_BEFORE = [4, 6, 10]
+
+/** Luyện riêng: bắt đầu từ bài `from`; `only` = dừng chấm ngay khi xong bài đó, ngược lại thi tiếp tới hết. */
+export interface YardPractice {
+  from: number
+  only: boolean
+}
+
+export const EX_COUNT = EX_NAMES.length
+
+/** Các bài nên luyện lại sau một lượt thi: bài bị đình chỉ trước, rồi bài mất nhiều điểm nhất. */
+export function weakExercises(faults: Fault[], max = 3) {
+  const lost = new Map<number, number>()
+  for (const f of faults) {
+    if (f.ex === undefined) continue
+    lost.set(f.ex, (lost.get(f.ex) ?? 0) + (f.fatal ? 1000 : f.points))
+  }
+  return [...lost.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, max)
+    .map(([ex]) => ex)
+}
+
 export class YardExam implements Scenario {
   readonly name = "Sa hình hạng B"
   readonly shapes = YARD_SHAPES
-  readonly start = { pos: v(0, -9.5), heading: 0 }
+  readonly start: { pos: V2; heading: number }
+  readonly practice?: YardPractice
   readonly timeLimit = 18 * 60
   readonly speedLimit = 24
   status: ExamStatus = "ready"
@@ -123,7 +165,10 @@ export class YardExam implements Scenario {
   light: Light = "green"
   /** Số thứ tự bài đang thực hiện (0-based) */
   ex = 0
-  private sc = new Scorer(() => this.time)
+  private sc = new Scorer(
+    () => this.time,
+    () => this.ex,
+  )
   private stop = new StopDetector()
   private speeding = new Repeater(3, () => this.sc.deduct(1, "Lái xe quá tốc độ quy định (cứ 3 giây)"))
   private overtime = new Repeater(3, () => this.sc.deduct(1, "Tổng thời gian quá quy định (cứ 3 giây)"))
@@ -140,6 +185,14 @@ export class YardExam implements Scenario {
   private hazard = { at: 0, phase: "idle" as "idle" | "armed" | "on" | "after", t0: 0, stoppedAt: 0, x: 0, endPos: v(0, 0), checked: 0 }
   private freeStop = { counted: false }
   private lightTimer = 0
+
+  constructor(practice?: YardPractice) {
+    const from = practice ? Math.max(0, Math.min(EX_COUNT - 1, practice.from)) : 0
+    this.practice = practice && { ...practice, from }
+    this.start = EX_START[from]
+    this.ex = from
+    CORNER_BEFORE.forEach((ex, i) => (this.cornerOk[i].done = from >= ex))
+  }
 
   get faults() {
     return this.sc.faults
@@ -167,6 +220,8 @@ export class YardExam implements Scenario {
 
   private next(ex: number) {
     if (ex <= this.ex) return
+    // Luyện riêng một bài: xong bài là chấm luôn
+    if (this.practice?.only) return this.finish(!this.sc.fatal && this.sc.score >= PASS_SCORE)
     this.ex = ex
     this.exStart = this.time
     this.exOver = 0
@@ -480,7 +535,9 @@ export class YardExam implements Scenario {
   }
 
   progress() {
-    return { done: this.status === "passed" ? 11 : this.ex, total: 11 }
+    const from = this.practice?.from ?? 0
+    const total = this.practice?.only ? 1 : EX_COUNT - from
+    return { done: this.status === "passed" ? total : this.ex - from, total }
   }
 
   instruction(car: Car): Instruction {
