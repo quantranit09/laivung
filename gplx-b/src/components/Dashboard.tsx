@@ -139,8 +139,9 @@ export function Dashboard() {
         <Tile icon={Flame} label="Chuỗi ngày học" value={`${streak} ngày`} tone="text-warning" />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr] lg:gap-5 lg:grid-cols-[1.35fr_1fr]">
-        <Card>
+      {/* minmax(0,…) + min-w-0: tên chương dài không đẩy thẻ tràn khỏi màn hình điện thoại */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-5">
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle className="text-base">Mức thuộc theo chương</CardTitle>
             <CardDescription>Thanh đậm = đã thuộc (trí nhớ bền ≥ 7 ngày) · nhạt = đã gặp. Bấm vào chương để học.</CardDescription>
@@ -154,8 +155,8 @@ export function Dashboard() {
                   onClick={() => openStudyChapter(String(c.id))}
                   className="-mx-2 block w-[calc(100%+1rem)] space-y-1.5 rounded-lg px-2 py-1 text-left transition hover:bg-accent"
                 >
-                  <div className="flex justify-between gap-2 text-sm">
-                    <span className="truncate">
+                  <div className="flex items-start justify-between gap-2 text-sm">
+                    <span className="line-clamp-2 sm:truncate">
                       <span className="font-medium">C{c.id}.</span> {c.name}
                     </span>
                     <span className="shrink-0 text-muted-foreground tabular-nums">
@@ -172,7 +173,7 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <div className="space-y-5">
+        <div className="min-w-0 space-y-4 lg:space-y-5">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">14 ngày gần đây</CardTitle>
